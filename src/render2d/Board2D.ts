@@ -2,7 +2,9 @@
 
 import type { Puzzle, RoomType } from '../core/model';
 import { colLetter, colOf, isBlocking, rowOf } from '../core/model';
+import { plaqueSpot } from '../core/plaque';
 import { s } from '../i18n';
+import { esc } from '../ui/dom';
 import { FURNITURE_SVG, chalkSvg, pawnSvg } from '../ui/icons';
 import { attachPointer } from '../ui/pointer';
 import type { BoardView, CastEntry, Fx, Intent, ViewModel } from '../ui/view';
@@ -63,15 +65,25 @@ export class Board2D implements BoardView {
       coords += `<text x="${i + 0.5}" y="${-PAD / 2}" class="coord">${colLetter(i)}</text>`;
       coords += `<text x="${-PAD / 2}" y="${i + 0.5}" class="coord">${i + 1}</text>`;
     }
-    // Room name plaques on the first cell of each room.
-    const seen = new Set<number>();
+    // Room name plaques along the wall `plaqueSpot` picks (bottom-to-top on west/east walls),
+    // each over a transparent hit strip so tapping the name shows the room.
     let labels = '';
-    for (let c = 0; c < N * N; c++) {
-      const r = pz.room[c];
-      if (seen.has(r)) continue;
-      seen.add(r);
-      labels += `<text x="${colOf(c, N) + 0.06}" y="${rowOf(c, N) + 0.15}" class="plaque">${t.rooms[pz.rooms[r].type]}</text>`;
-    }
+    pz.rooms.forEach((room, r) => {
+      const { side, row, col, len } = plaqueSpot(pz, r);
+      const mid = (side === 'W' || side === 'E' ? row : col) + len / 2;
+      const name = esc(t.rooms[room.type]);
+      const fit = `data-fit="${len - 0.12}"`;
+      if (side === 'N' || side === 'S') {
+        const y = side === 'N' ? row : row + 0.7;
+        labels += `<rect x="${col}" y="${y}" width="${len}" height="0.3" data-room="${r}" class="plaque-hit"/>`;
+        labels += `<text x="${mid}" y="${side === 'N' ? row + 0.16 : row + 0.93}" ${fit} class="plaque">${name}</text>`;
+      } else {
+        const x = side === 'W' ? col : col + 0.7;
+        const bx = side === 'W' ? col + 0.16 : col + 0.93;
+        labels += `<rect x="${x}" y="${row}" width="0.3" height="${len}" data-room="${r}" class="plaque-hit"/>`;
+        labels += `<text x="${bx}" y="${mid}" transform="rotate(-90 ${bx} ${mid})" ${fit} class="plaque">${name}</text>`;
+      }
+    });
 
     this.root.innerHTML = `<svg viewBox="${-PAD} ${-PAD} ${W} ${W}" class="board2d-svg" aria-hidden="true">
       <rect x="${-PAD}" y="${-PAD}" width="${W}" height="${W}" rx="0.3" class="base"/>
@@ -83,7 +95,24 @@ export class Board2D implements BoardView {
     const g = (sel: string) => this.svg.querySelector(sel) as SVGGElement;
     this.layers = { shade: g('.shade'), hl: g('.hl'), marks: g('.marks'), pawns: g('.pawns'), fx: g('.fx') };
     this.detach?.();
-    this.detach = attachPointer(this.root, { pick: (x, y) => this.pick(x, y), emit: (i) => this.onIntent(i) });
+    this.detach = attachPointer(this.root, {
+      pick: (x, y) => this.pick(x, y),
+      pickRoom: (x, y) => this.pickRoom(x, y),
+      emit: (i) => this.onIntent(i),
+    });
+    // Squeeze names that are wider than their stretch of wall.
+    this.svg.querySelectorAll<SVGTextElement>('text.plaque').forEach((el) => {
+      const max = Number(el.dataset.fit);
+      if (el.getComputedTextLength() > max) {
+        el.setAttribute('textLength', String(max));
+        el.setAttribute('lengthAdjust', 'spacingAndGlyphs');
+      }
+    });
+  }
+
+  private pickRoom(x: number, y: number): number {
+    const hit = document.elementsFromPoint(x, y).find((el) => el instanceof SVGElement && el.dataset.room !== undefined);
+    return hit ? Number((hit as SVGElement).dataset.room) : -1;
   }
 
   private pick(x: number, y: number): number {

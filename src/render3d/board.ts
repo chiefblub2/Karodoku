@@ -1,13 +1,14 @@
 // Static board: beveled wooden base with coordinates, floors per room, low walls, brass plaques.
 
 import {
-  BufferAttribute, BufferGeometry, CanvasTexture, ExtrudeGeometry, Group, Mesh, MeshStandardMaterial,
+  BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, ExtrudeGeometry, Group, Mesh, MeshStandardMaterial,
   PlaneGeometry, Shape, SRGBColorSpace,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Puzzle } from '../core/model';
-import { colOf, isBlocking, rowOf } from '../core/model';
+import { colOf, rowOf } from '../core/model';
+import { plaqueSpot } from '../core/plaque';
 import type { Strings } from '../i18n';
 import type { Bag } from './bag';
 import { FLOOR_TEX_CELLS, baseTopCanvas, floorTexture, plaqueCanvas, woodTexture } from './textures';
@@ -158,44 +159,44 @@ function buildWalls(pz: Puzzle, bag: Bag): Group {
 }
 
 /**
- * Brass name plate on each room's north wall: on the longest stretch of wall above the room,
- * overhanging into the room it names (a plate always belongs to the room south of its wall).
+ * Brass name plate on each room, on the stretch of wall chosen by `plaqueSpot`, overhanging into
+ * the room it names. Plates on west/east walls turn to run along the wall, read bottom to top
+ * like a book spine. Each carries an invisible, roomier hit box tagged `userData.plaque`.
  */
 function buildPlaques(pz: Puzzle, t: Strings, bag: Bag): Group {
   const N = pz.size;
   const g = new Group();
   const edge = bag.mat(new MeshStandardMaterial({ color: '#7a5418', roughness: 0.35, metalness: 0.8 }));
   pz.rooms.forEach((room, r) => {
-    // Best run of cells in this room with a wall on their north side: long, and not hidden
-    // behind tall furniture (each blocking cell in the run costs more than a cell of length).
-    let best = { row: 0, from: 0, len: 0, score: -Infinity };
-    for (let row = 0; row < N; row++) {
-      for (let k = 0; k < N; k++) {
-        for (let len = 1; len <= 3 && k + len <= N; len++) {
-          const cells = Array.from({ length: len }, (_, i) => row * N + k + i);
-          if (!cells.every((c) => pz.room[c] === r && (row === 0 || pz.room[c - N] !== r))) break;
-          // Bookcases stand against the north wall and hide a plate completely; tables and plants only nibble at it.
-          const cost = cells.reduce((a, c) => a + (pz.obj[c] === 'shelf' ? 2 : isBlocking(pz.obj[c]) ? 0.45 : 0), 0);
-          const score = Math.min(len, 2.5) - cost - row * 0.05;
-          if (score > best.score) best = { row, from: k, len, score };
-        }
-      }
-    }
-    const w = Math.min(best.len, 3) - 0.26;
+    const spot = plaqueSpot(pz, r);
+    const w = Math.min(spot.len, 3) - 0.26;
     const d = 0.25;
     const tex = new CanvasTexture(plaqueCanvas(t.rooms[room.type], w / d));
     tex.colorSpace = SRGBColorSpace;
     tex.anisotropy = 8;
     const face = new Mesh(bag.geo(new PlaneGeometry(w, d)), bag.mat(new MeshStandardMaterial({ map: bag.tex(tex), roughness: 0.32, metalness: 0.6 })));
     face.rotation.x = -Math.PI / 2;
+    face.position.y = WALL_H + 0.037;
     const slab = new Mesh(bag.geo(new RoundedBoxGeometry(w + 0.02, 0.03, d + 0.02, 2, 0.01)), edge);
-    const cx = best.from + best.len / 2 - N / 2;
-    const cz = best.row - N / 2 + 0.07;
-    slab.position.set(cx, WALL_H + 0.02, cz);
-    face.position.set(cx, WALL_H + 0.037, cz);
+    slab.position.y = WALL_H + 0.02;
     slab.castShadow = true;
+    // Never drawn, but the raycaster still finds it (it ignores visibility).
+    const hit = new Mesh(bag.geo(new BoxGeometry(spot.len, WALL_H, 0.5)), edge);
+    hit.visible = false;
+    hit.position.y = WALL_H * 0.75;
+    hit.userData.plaque = r;
     face.userData.plaque = r;
-    g.add(slab, face);
+    // Local x runs along the wall; a quarter turn about Y makes it run north (up the screen).
+    const plate = new Group();
+    plate.add(slab, face, hit);
+    const vertical = spot.side === 'W' || spot.side === 'E';
+    const along = (vertical ? spot.row : spot.col) + spot.len / 2 - N / 2;
+    if (spot.side === 'N') plate.position.set(along, 0, spot.row - N / 2 + 0.07);
+    if (spot.side === 'S') plate.position.set(along, 0, spot.row + 1 - N / 2 - 0.07);
+    if (spot.side === 'W') plate.position.set(spot.col - N / 2 + 0.07, 0, along);
+    if (spot.side === 'E') plate.position.set(spot.col + 1 - N / 2 - 0.07, 0, along);
+    if (vertical) plate.rotation.y = Math.PI / 2;
+    g.add(plate);
   });
   return g;
 }
