@@ -220,7 +220,7 @@ export function reduceClues(board: Pick<Puzzle, 'size' | 'room' | 'rooms' | 'obj
   let kept = order.slice();
   for (const cl of order) {
     const trial = kept.filter((x) => x !== cl);
-    const res = countSolutions(board, trial, 2, 300_000);
+    const res = countSolutions(board, trial, 2, 1_000_000);
     if (!res.aborted && res.count === 1) kept = trial;
   }
   return kept;
