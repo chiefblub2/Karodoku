@@ -53,7 +53,7 @@ export const OBJECT_NAMES = {
 
 const UI = {
   de: {
-    tagline: 'Mordrätsel im Murdoku-Stil',
+    tagline: 'Logische Mordrätsel',
     size: 'Größe', difficulty: 'Schwierigkeit',
     easy: 'Leicht', medium: 'Mittel', hard: 'Schwer',
     newPuzzle: 'Neues Rätsel', daily: 'Tagesrätsel',
@@ -89,7 +89,7 @@ const UI = {
     howTo: 'Bedienung: Person unten antippen, dann ein Feld antippen. Nochmal tippen entfernt sie. Mit ✕ markierst du Felder, auf denen niemand sein kann. Hinweise kannst du antippen, um sie abzuhaken.',
   },
   en: {
-    tagline: 'Murder mystery logic puzzles in Murdoku style',
+    tagline: 'Murder mystery logic puzzles',
     size: 'Size', difficulty: 'Difficulty',
     easy: 'Easy', medium: 'Medium', hard: 'Hard',
     newPuzzle: 'New puzzle', daily: 'Daily puzzle',

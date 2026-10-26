@@ -1,6 +1,6 @@
 # Karodoku
 
-Generierte Mordrätsel im Murdoku-Stil – als statische Website für GitHub Pages, optimiert fürs Handy.
+Generierte Mordrätsel als statische Website für GitHub Pages, optimiert fürs Handy.
 
 ## Regeln
 
