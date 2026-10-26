@@ -337,3 +337,4 @@ h1, h2, h3 { font-family: var(--serif); margin: 0; }
   mix-blend-mode: normal;
 }
 .board-host > canvas.board3d { position: absolute; inset: 0; }
+.clue-list[hidden], .legend[hidden] { display: none; }

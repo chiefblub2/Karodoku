@@ -16,15 +16,23 @@ const fs = require('fs');
         const errs = [];
         pg.on('pageerror', (e) => errs.push(e.message));
         pg.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
-        await pg.goto(`${base}?n=${n}&d=medium&s=shot${n}`);
+        await pg.goto(`${base}?n=${n}&d=medium&s=${n === 5 ? 'show2' : 'show9'}`);
         await pg.waitForSelector('canvas.board3d, .board2d svg', { timeout: 30000 });
         await pg.waitForTimeout(2500);
         // Place a few people via hints so pawns, the chalk outline and marks show up.
-        for (let i = 0; i < Math.min(4, n - 1); i++) { await pg.click('[data-action=hint]'); await pg.waitForTimeout(150); }
-        // A mark on the first free cell via the keyboard grid.
+        for (let i = 0; i < Math.min(4, n - 2); i++) { await pg.click('[data-action=hint]'); await pg.waitForTimeout(150); }
+        // Victim in place (dev hook), plus one ✕ mark on a free cell.
+        await pg.evaluate(() => {
+          const app = window.__app; if (!app) return;
+          const g = app.game, N = g.size;
+          g.place(N - 1, g.pz.solution[N - 1]);
+          const free = [...Array(N * N).keys()].find((c) => !g.pz.obj[c] && g.personAt(c) < 0 && !g.pz.solution.includes(c));
+          if (free !== undefined) g.toggleMark(free);
+          app.tool = 1;
+        });
         await pg.waitForTimeout(1500);
-        const name = `${vname}-${n}x${n}-${scheme}${tag ? '-' + tag : ''}.png`;
-        await pg.screenshot({ path: `${out}/${name}` });
+        const name = `${vname}-${n}x${n}-${scheme}${tag ? '-' + tag : ''}.jpg`;
+        await pg.screenshot({ path: `${out}/${name}`, type: 'jpeg', quality: 88 });
         console.log(name, errs.length ? errs : 'ok');
         await ctx.close();
       }

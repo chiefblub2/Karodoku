@@ -6,7 +6,7 @@
 
 import {
   BufferGeometry, Color, CylinderGeometry, DoubleSide, Euler, Group, InstancedMesh, LatheGeometry, Material, Matrix4,
-  MeshStandardMaterial, PlaneGeometry, Quaternion, SphereGeometry, TorusGeometry, Vector2, Vector3, CanvasTexture,
+  MeshStandardMaterial, Quaternion, SphereGeometry, TorusGeometry, Vector2, Vector3, CanvasTexture,
   SRGBColorSpace, ConeGeometry, BoxGeometry,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
@@ -16,11 +16,11 @@ import { makeRng } from '../core/rng';
 import type { Rng } from '../core/rng';
 import type { Bag } from './bag';
 import { cellCenter } from './board';
-import { rugCanvas, spinesCanvas, woodTexture, feltTexture } from './textures';
+import { bookTopsCanvas, rugCanvas, spinesCanvas, woodTexture, feltTexture } from './textures';
 
 /** Height a pawn stands at / a mark floats at, per object. */
 export const SURFACE: Record<ObjectType | 'none', number> = {
-  none: 0, rug: 0.022, chair: 0.215, bed: 0.255, tub: 0.07, table: 0.56, plant: 0.4, shelf: 0.86,
+  none: 0, rug: 0.022, chair: 0.22, bed: 0.255, tub: 0.07, table: 0.56, plant: 0.4, shelf: 1.18,
 };
 export const surfaceOf = (o: ObjectType | null): number => SURFACE[o ?? 'none'];
 
@@ -60,18 +60,18 @@ function woodMat(lib: Library, bag: Bag, key: string, base: string, tint = '#fff
 function chair(lib: Library, bag: Bag): Part[] {
   const wood = woodMat(lib, bag, 'chair', '#8a5530');
   const cushion = lib.mat('cushion', () => std({ map: bag.tex(feltTexture('#8e2a24', 'cushion')), roughness: 0.95 }));
-  const seat = lib.geo('chair-seat', () => new RoundedBoxGeometry(0.5, 0.06, 0.48, 2, 0.025));
-  const pad = lib.geo('chair-pad', () => new RoundedBoxGeometry(0.42, 0.04, 0.4, 2, 0.02));
+  const seat = lib.geo('chair-seat', () => new RoundedBoxGeometry(0.58, 0.06, 0.54, 2, 0.025));
+  const pad = lib.geo('chair-pad', () => new RoundedBoxGeometry(0.5, 0.045, 0.44, 2, 0.022));
   const leg = lib.geo('chair-leg', () => new CylinderGeometry(0.025, 0.02, 0.18, 6));
-  const back = lib.geo('chair-back', () => new RoundedBoxGeometry(0.5, 0.3, 0.05, 2, 0.022));
+  const back = lib.geo('chair-back', () => new RoundedBoxGeometry(0.58, 0.34, 0.085, 2, 0.03));
   const rail = lib.geo('chair-rail', () => new CylinderGeometry(0.02, 0.02, 0.24, 6));
   const parts: Part[] = [
     { geo: seat, mat: wood, m: M(0, 0.17, 0.02) },
     { geo: pad, mat: cushion, m: M(0, 0.205, 0.03) },
-    { geo: back, mat: wood, m: M(0, 0.38, -0.2, -0.12) },
+    { geo: back, mat: wood, m: M(0, 0.39, -0.23, -0.14) },
   ];
-  for (const [x, z] of [[-0.2, -0.18], [0.2, -0.18], [-0.2, 0.2], [0.2, 0.2]]) parts.push({ geo: leg, mat: wood, m: M(x, 0.08, z) });
-  for (const x of [-0.2, 0.2]) parts.push({ geo: rail, mat: wood, m: M(x, 0.27, -0.21, -0.12) });
+  for (const [x, z] of [[-0.24, -0.21], [0.24, -0.21], [-0.24, 0.23], [0.24, 0.23]]) parts.push({ geo: leg, mat: wood, m: M(x, 0.08, z) });
+  for (const x of [-0.24, 0.24]) parts.push({ geo: rail, mat: wood, m: M(x, 0.27, -0.24, -0.14) });
   return parts;
 }
 
@@ -142,45 +142,51 @@ function rug(lib: Library, bag: Bag, rng: Rng): Part[] {
 }
 
 function table(lib: Library, bag: Bag, rng: Rng): Part[] {
-  const wood = woodMat(lib, bag, 'table', '#7a4524', '#ffffff', 0.45);
-  const top = lib.geo('table-top', () => new RoundedBoxGeometry(0.86, 0.07, 0.74, 3, 0.03));
-  const apron = lib.geo('table-apron', () => new RoundedBoxGeometry(0.74, 0.08, 0.62, 2, 0.02));
-  const leg = lib.geo('table-leg', () => new LatheGeometry([new Vector2(0, 0), new Vector2(0.035, 0), new Vector2(0.03, 0.12),
-    new Vector2(0.045, 0.2), new Vector2(0.03, 0.3), new Vector2(0.04, 0.46), new Vector2(0, 0.46)], 8));
+  const wood = woodMat(lib, bag, 'table', '#7a4524', '#ffffff', 0.4);
+  const dark = woodMat(lib, bag, 'table-dark', '#4a2512', '#ffffff', 0.5);
+  const top = lib.geo('table-top', () => new CylinderGeometry(0.42, 0.42, 0.06, 40));
+  const rim = lib.geo('table-rim', () => new TorusGeometry(0.42, 0.022, 8, 40));
+  const skirt = lib.geo('table-skirt', () => new CylinderGeometry(0.36, 0.34, 0.07, 32, 1, true));
+  const legs = lib.geo('table-legs', () => new LatheGeometry([new Vector2(0, 0.08), new Vector2(0.05, 0.08), new Vector2(0.04, 0.16),
+    new Vector2(0.07, 0.24), new Vector2(0.045, 0.32), new Vector2(0.055, 0.46), new Vector2(0, 0.46)], 12));
+  const foot = lib.geo('table-foot', () => new RoundedBoxGeometry(0.34, 0.06, 0.07, 2, 0.025));
   const parts: Part[] = [
     { geo: top, mat: wood, m: M(0, 0.5, 0) },
-    { geo: apron, mat: wood, m: M(0, 0.43, 0) },
+    { geo: rim, mat: dark, m: M(0, 0.5, 0, Math.PI / 2) },
+    { geo: skirt, mat: dark, m: M(0, 0.44, 0) },
+    { geo: legs, mat: dark, m: M(0, 0, 0) },
   ];
-  for (const [x, z] of [[-0.35, -0.28], [0.35, -0.28], [-0.35, 0.28], [0.35, 0.28]]) parts.push({ geo: leg, mat: wood, m: M(x, 0, z) });
+  for (let i = 0; i < 3; i++) parts.push({ geo: foot, mat: dark, m: M(Math.cos((i * 2 * Math.PI) / 3) * 0.15, 0.04, Math.sin((i * 2 * Math.PI) / 3) * 0.15, 0, -(i * 2 * Math.PI) / 3, 0) });
   // Something on top.
   const what = rng.pick(['candle', 'candle', 'book', 'teapot']);
   if (what === 'candle') {
     const brass = lib.mat('brass', () => std({ color: '#c99a3e', roughness: 0.3, metalness: 0.9 }));
     const wax = lib.mat('wax', () => std({ color: '#f4ecd8', roughness: 0.7, emissive: new Color('#3a2a10') }));
-    const flame = lib.mat('flame', () => std({ color: '#ffd27a', emissive: new Color('#ffae3a'), emissiveIntensity: 2.2, roughness: 1 }));
+    const flame = lib.mat('flame', () => std({ color: '#ffd27a', emissive: new Color('#ffae3a'), emissiveIntensity: 2.4, roughness: 1 }));
     parts.push(
-      { geo: lib.geo('candle-dish', () => new CylinderGeometry(0.09, 0.1, 0.02, 16)), mat: brass, m: M(0.12, 0.545, 0.06) },
-      { geo: lib.geo('candle-wax', () => new CylinderGeometry(0.03, 0.03, 0.16, 10)), mat: wax, m: M(0.12, 0.63, 0.06) },
-      { geo: lib.geo('candle-flame', () => { const g = new SphereGeometry(0.025, 8, 6); g.scale(1, 1.8, 1); return g; }), mat: flame, m: M(0.12, 0.735, 0.06), shadow: false },
+      { geo: lib.geo('candle-dish', () => new CylinderGeometry(0.1, 0.11, 0.025, 18)), mat: brass, m: M(0.05, 0.545, 0.04) },
+      { geo: lib.geo('candle-wax', () => new CylinderGeometry(0.035, 0.035, 0.18, 12)), mat: wax, m: M(0.05, 0.645, 0.04) },
+      { geo: lib.geo('candle-flame', () => { const g = new SphereGeometry(0.028, 8, 6); g.scale(1, 1.9, 1); return g; }), mat: flame, m: M(0.05, 0.765, 0.04), shadow: false },
     );
   } else if (what === 'book') {
     const c1 = lib.mat('book-red', () => std({ color: '#8e2a24', roughness: 0.7 }));
     const c2 = lib.mat('book-green', () => std({ color: '#2f5d3a', roughness: 0.7 }));
     const pages = lib.mat('pages', () => std({ color: '#efe6cf', roughness: 0.9 }));
-    const b = lib.geo('book', () => new RoundedBoxGeometry(0.26, 0.05, 0.19, 1, 0.01));
-    const p = lib.geo('book-pages', () => new BoxGeometry(0.24, 0.035, 0.18));
+    const b = lib.geo('book', () => new RoundedBoxGeometry(0.28, 0.05, 0.2, 1, 0.01));
+    const p = lib.geo('book-pages', () => new BoxGeometry(0.26, 0.035, 0.19));
     parts.push(
-      { geo: b, mat: c1, m: M(-0.1, 0.56, 0.05, 0, 0.3) }, { geo: p, mat: pages, m: M(-0.095, 0.56, 0.05, 0, 0.3) },
-      { geo: b, mat: c2, m: M(-0.08, 0.61, 0.04, 0, -0.2) }, { geo: p, mat: pages, m: M(-0.075, 0.61, 0.04, 0, -0.2) },
+      { geo: b, mat: c1, m: M(-0.04, 0.555, 0.04, 0, 0.3) }, { geo: p, mat: pages, m: M(-0.035, 0.555, 0.04, 0, 0.3) },
+      { geo: b, mat: c2, m: M(-0.02, 0.605, 0.03, 0, -0.2) }, { geo: p, mat: pages, m: M(-0.015, 0.605, 0.03, 0, -0.2) },
     );
   } else {
     const china = lib.mat('china', () => std({ color: '#f3f0ea', roughness: 0.25 }));
     const blue = lib.mat('china-blue', () => std({ color: '#2b4a7a', roughness: 0.3 }));
     parts.push(
-      { geo: lib.geo('teapot', () => new LatheGeometry([new Vector2(0, 0), new Vector2(0.07, 0), new Vector2(0.1, 0.05), new Vector2(0.09, 0.11),
-        new Vector2(0.05, 0.14), new Vector2(0.015, 0.165), new Vector2(0, 0.17)], 18)), mat: china, m: M(0.05, 0.535, 0) },
-      { geo: lib.geo('teapot-spout', () => new ConeGeometry(0.02, 0.12, 8)), mat: china, m: M(0.17, 0.62, 0, 0, 0, -0.9) },
-      { geo: lib.geo('teapot-band', () => new TorusGeometry(0.098, 0.012, 6, 20)), mat: blue, m: M(0.05, 0.585, 0, Math.PI / 2) },
+      { geo: lib.geo('teapot', () => new LatheGeometry([new Vector2(0, 0), new Vector2(0.08, 0), new Vector2(0.115, 0.06), new Vector2(0.1, 0.13),
+        new Vector2(0.055, 0.16), new Vector2(0.018, 0.185), new Vector2(0, 0.19)], 20)), mat: china, m: M(0, 0.53, 0) },
+      { geo: lib.geo('teapot-spout', () => new ConeGeometry(0.022, 0.13, 8)), mat: china, m: M(0.13, 0.62, 0, 0, 0, -0.9) },
+      { geo: lib.geo('teapot-handle', () => new TorusGeometry(0.05, 0.014, 6, 14, Math.PI)), mat: china, m: M(-0.11, 0.6, 0, 0, 0, Math.PI / 2) },
+      { geo: lib.geo('teapot-band', () => new TorusGeometry(0.113, 0.013, 6, 20)), mat: blue, m: M(0, 0.59, 0, Math.PI / 2) },
     );
   }
   return parts;
@@ -218,31 +224,41 @@ function plant(lib: Library, _bag: Bag, rng: Rng): Part[] {
 }
 
 function shelf(lib: Library, bag: Bag, rng: Rng): Part[] {
-  const wood = woodMat(lib, bag, 'shelf', '#4a2814', '#d0a888', 0.5);
+  const wood = woodMat(lib, bag, 'shelf', '#4a2814', '#d8b090', 0.5);
+  const light = woodMat(lib, bag, 'shelf-top', '#9a6232', '#ffffff', 0.4);
   const variant = rng.int(0, 2);
   const spines = lib.mat(`spines:${variant}`, () => {
     const t = new CanvasTexture(spinesCanvas('spines' + variant));
     t.colorSpace = SRGBColorSpace;
     return std({ map: bag.tex(t), roughness: 0.75 });
   });
-  const side = lib.geo('shelf-side', () => new RoundedBoxGeometry(0.06, 0.84, 0.36, 2, 0.02));
-  const board = lib.geo('shelf-board', () => new RoundedBoxGeometry(0.84, 0.05, 0.36, 2, 0.02));
-  const back = lib.geo('shelf-back', () => new BoxGeometry(0.8, 0.8, 0.03));
-  const crown = lib.geo('shelf-crown', () => new RoundedBoxGeometry(0.94, 0.06, 0.42, 2, 0.025));
-  const books = lib.geo('shelf-books', () => new PlaneGeometry(0.76, 0.2));
-  const z = -0.26; // backed against the north side of the cell, books face the camera
+  const H = 0.98, D = 0.4;
+  const side = lib.geo('shelf-side', () => new RoundedBoxGeometry(0.07, H, D, 2, 0.02));
+  const board = lib.geo('shelf-board', () => new RoundedBoxGeometry(0.84, 0.05, D, 2, 0.02));
+  const back = lib.geo('shelf-back', () => new BoxGeometry(0.8, H - 0.04, 0.03));
+  const crown = lib.geo('shelf-crown', () => new RoundedBoxGeometry(0.96, 0.07, D + 0.08, 2, 0.03));
+  const books = lib.geo('shelf-books', () => new BoxGeometry(0.76, 0.22, 0.24));
+  const z = -0.25; // backed against the north side; spines face the camera
   const parts: Part[] = [
-    { geo: side, mat: wood, m: M(-0.42, 0.42, z) }, { geo: side, mat: wood, m: M(0.42, 0.42, z) },
-    { geo: back, mat: wood, m: M(0, 0.42, z - 0.165) },
-    { geo: crown, mat: wood, m: M(0, 0.86, z) },
+    { geo: side, mat: wood, m: M(-0.42, H / 2, z) }, { geo: side, mat: wood, m: M(0.42, H / 2, z) },
+    { geo: back, mat: wood, m: M(0, H / 2, z - D / 2 + 0.02) },
+    { geo: crown, mat: light, m: M(0, H + 0.02, z + 0.02) },
   ];
-  for (const y of [0.03, 0.29, 0.56]) parts.push({ geo: board, mat: wood, m: M(0, y, z) });
-  for (const y of [0.16, 0.42, 0.69]) parts.push({ geo: books, mat: spines, m: M(0, y, z + 0.12), shadow: false });
-  // Books lying on top (visible from above).
-  const red = lib.mat('book-red', () => std({ color: '#8e2a24', roughness: 0.7 }));
-  const blue = lib.mat('book-blue', () => std({ color: '#2b4a7a', roughness: 0.7 }));
-  const b = lib.geo('book', () => new RoundedBoxGeometry(0.26, 0.05, 0.19, 1, 0.01));
-  parts.push({ geo: b, mat: red, m: M(-0.18, 0.915, z, 0, 0.2) }, { geo: b, mat: blue, m: M(0.16, 0.915, z + 0.02, 0, -0.35) });
+  for (const y of [0.03, 0.33, 0.64]) parts.push({ geo: board, mat: wood, m: M(0, y, z) });
+  for (const y of [0.17, 0.47, 0.78]) parts.push({ geo: books, mat: spines, m: M(0, y, z - 0.02), shadow: false });
+  // A row of standing books on top: from above they read as bright stripes = bookcase.
+  const tops = lib.mat(`booktops:${variant}`, () => {
+    const t = new CanvasTexture(bookTopsCanvas('tops' + variant));
+    t.colorSpace = SRGBColorSpace;
+    t.anisotropy = 8;
+    return std({ map: bag.tex(t), roughness: 0.7 });
+  });
+  const row = lib.geo('shelf-toprow', () => {
+    const g = new BoxGeometry(0.8, 0.12, 0.3);
+    // Box UVs per face are 0..1, so the stripes land on the top face as-is.
+    return g;
+  });
+  parts.push({ geo: row, mat: tops, m: M(0, H + 0.11, z + 0.02) });
   return parts;
 }
 
@@ -268,11 +284,8 @@ function orientation(pz: Puzzle, c: number, rng: Rng): number {
     for (const [dr, dk, yaw] of dirs) if (wallTo(dr, dk)) return yaw;
     return 0;
   }
-  if (o === 'shelf') {
-    // Prefer backing onto a north/east/west wall so the spines face the camera.
-    for (const [dr, dk, yaw] of [dirs[0], dirs[1], dirs[3]]) if (wallTo(dr, dk)) return yaw;
-    return 0;
-  }
+  // Bookcases always face the camera (south) so their spines show.
+  if (o === 'shelf') return 0;
   if (o === 'plant') return rng.next() * Math.PI * 2;
   if (o === 'rug') return rng.next() < 0.5 ? 0 : Math.PI / 2;
   return rng.next() < 0.5 ? 0 : Math.PI;

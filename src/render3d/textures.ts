@@ -273,11 +273,11 @@ function conservatoryTiles(seed: string): HTMLCanvasElement {
 function flagstones(seed: string): HTMLCanvasElement {
   const [c, ctx] = canvas(FS);
   const rng = makeRng(seed);
-  ctx.fillStyle = '#3a342e';
+  ctx.fillStyle = '#2e2a26';
   ctx.fillRect(0, 0, FS, FS);
   const noise = valueNoise(rng, 32);
   // Irregular stones on a jittered grid; tiles seamlessly because the grid wraps.
-  const n = 5, t = FS / n;
+  const n = 4, t = FS / n;
   const jitter = Array.from({ length: (n + 1) * (n + 1) }, () => [(rng.next() - 0.5) * t * 0.35, (rng.next() - 0.5) * t * 0.35]);
   const pt = (i: number, j: number) => {
     const [dx, dy] = jitter[(j % n) * (n + 1) + (i % n)];
@@ -288,12 +288,12 @@ function flagstones(seed: string): HTMLCanvasElement {
       const ii = (i + n) % n, jj = (j + n) % n;
       const ox = (i - ii) * t, oy = (j - jj) * t;
       const ps = [pt(ii, jj), pt(ii + 1, jj), pt(ii + 1, jj + 1), pt(ii, jj + 1)];
-      const v = 92 + rng.next() * 40;
+      const v = 104 + rng.next() * 36;
       ctx.fillStyle = `rgb(${v + 6},${v},${v - 8})`;
       ctx.beginPath();
       ps.forEach(([x, y], k) => {
         const cx = (ps[0][0] + ps[2][0]) / 2, cy = (ps[0][1] + ps[2][1]) / 2;
-        const px = x + ox + (cx - x) * 0.05, py = y + oy + (cy - y) * 0.05;
+        const px = x + ox + (cx - x) * 0.07, py = y + oy + (cy - y) * 0.07;
         if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
       });
       ctx.closePath();
@@ -304,7 +304,7 @@ function flagstones(seed: string): HTMLCanvasElement {
   for (let y = 0; y < FS; y++) {
     for (let x = 0; x < FS; x++) {
       const k = (y * FS + x) * 4;
-      const nv = (noise(x / 16, y / 16) - 0.5) * 40 + (rng.next() - 0.5) * 14;
+      const nv = (noise(x / 24, y / 24) - 0.5) * 26 + (rng.next() - 0.5) * 6;
       img.data[k] += nv; img.data[k + 1] += nv; img.data[k + 2] += nv;
     }
   }
@@ -496,20 +496,8 @@ export function chalkCanvas(): HTMLCanvasElement {
   return cached('chalk', () => {
     const [c, ctx] = canvas(256);
     const rng = makeRng('chalk');
-    const path = (draw: () => void) => {
-      for (let k = 0; k < 4; k++) {
-        ctx.save();
-        ctx.translate((rng.next() - 0.5) * 2.5, (rng.next() - 0.5) * 2.5);
-        ctx.strokeStyle = `rgba(255,255,255,${0.35 + rng.next() * 0.35})`;
-        ctx.lineWidth = 3 + rng.next() * 3;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        draw();
-        ctx.stroke();
-        ctx.restore();
-      }
-    };
+    const strokes: (() => void)[] = [];
+    const path = (draw: () => void) => strokes.push(draw);
     // Sprawled figure, head at top-left.
     path(() => ctx.arc(92, 52, 22, 0, Math.PI * 2));
     path(() => {
@@ -522,6 +510,27 @@ export function chalkCanvas(): HTMLCanvasElement {
       ctx.lineTo(36, 132); ctx.lineTo(30, 118); ctx.lineTo(78, 86); // left arm
       ctx.bezierCurveTo(82, 78, 90, 74, 98, 72);
     });
+    // A soft dark under-stroke keeps the chalk readable on pale tiles and marble.
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.save();
+    ctx.strokeStyle = 'rgba(20,10,5,.55)';
+    ctx.lineWidth = 13;
+    ctx.filter = 'blur(3px)';
+    for (const draw of strokes) { ctx.beginPath(); draw(); ctx.stroke(); }
+    ctx.restore();
+    for (const draw of strokes) {
+      for (let k = 0; k < 4; k++) {
+        ctx.save();
+        ctx.translate((rng.next() - 0.5) * 2.5, (rng.next() - 0.5) * 2.5);
+        ctx.strokeStyle = `rgba(255,255,255,${0.45 + rng.next() * 0.35})`;
+        ctx.lineWidth = 3.5 + rng.next() * 3;
+        ctx.beginPath();
+        draw();
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
     // Chalk dust.
     speckle(ctx, 256, rng, 260, 'rgba(255,255,255,.16)', 1.4);
     return c;
@@ -531,30 +540,33 @@ export function chalkCanvas(): HTMLCanvasElement {
 /** Brass plaque with an engraved room name. */
 export function plaqueCanvas(text: string, aspect: number): HTMLCanvasElement {
   return cached(`plaque:${text}:${aspect.toFixed(2)}`, () => {
-    const h = 64, w = Math.round(h * aspect);
+    const h = 96, w = Math.round(h * aspect);
     const [c, ctx] = canvas(w, h);
     const g = ctx.createLinearGradient(0, 0, 0, h);
-    g.addColorStop(0, '#f1d58c');
-    g.addColorStop(0.45, '#c9a04b');
-    g.addColorStop(1, '#8f6a26');
+    g.addColorStop(0, '#f6dd96');
+    g.addColorStop(0.5, '#d4aa52');
+    g.addColorStop(1, '#a37a2e');
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.roundRect(1, 1, w - 2, h - 2, 10);
+    ctx.roundRect(2, 2, w - 4, h - 4, 14);
     ctx.fill();
-    ctx.strokeStyle = '#6b4c17';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#5e420f';
+    ctx.lineWidth = 4;
     ctx.stroke();
     ctx.fillStyle = '#5a3d0e';
-    for (const x of [10, w - 10]) { ctx.beginPath(); ctx.arc(x, h / 2, 3, 0, Math.PI * 2); ctx.fill(); }
-    let size = 40;
-    ctx.font = `700 ${size}px Georgia, serif`;
-    while (ctx.measureText(text).width > w - 34 && size > 14) { size -= 2; ctx.font = `700 ${size}px Georgia, serif`; }
+    for (const x of [14, w - 14]) { ctx.beginPath(); ctx.arc(x, h / 2, 4.5, 0, Math.PI * 2); ctx.fill(); }
+    // As large as the plate allows; bold sans stays legible when tiny.
+    const label = text.toUpperCase();
+    let size = 70;
+    const font = (px: number) => `800 ${px}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+    ctx.font = font(size);
+    while (ctx.measureText(label).width > w - 44 && size > 18) { size -= 2; ctx.font = font(size); }
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(255,240,200,.6)';
-    ctx.fillText(text, w / 2, h / 2 + 2);
-    ctx.fillStyle = '#3d2706';
-    ctx.fillText(text, w / 2, h / 2);
+    ctx.fillStyle = 'rgba(255,244,210,.65)';
+    ctx.fillText(label, w / 2, h / 2 + 3);
+    ctx.fillStyle = '#2e1d04';
+    ctx.fillText(label, w / 2, h / 2 + 1);
     return c;
   });
 }
@@ -590,6 +602,28 @@ export function evidenceCanvas(): HTMLCanvasElement {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('1', 64, 70);
+    return c;
+  });
+}
+
+/** Tops of standing books seen from above: bright stripes (makes a bookcase readable top-down). */
+export function bookTopsCanvas(seed: string): HTMLCanvasElement {
+  return cached(`booktops:${seed}`, () => {
+    const [c, ctx] = canvas(256, 64);
+    const rng = makeRng(seed);
+    const colours = ['#b3302a', '#2f6b42', '#d8a53e', '#2f5590', '#7a3d72', '#efe2c4', '#8a4a22', '#c0281c', '#3d7f8a'];
+    ctx.fillStyle = '#2a170b';
+    ctx.fillRect(0, 0, 256, 64);
+    let x = 2;
+    while (x < 254) {
+      const w = 11 + rng.next() * 13;
+      const inset = rng.next() * 10;
+      ctx.fillStyle = rng.pick(colours);
+      ctx.fillRect(x, 6 + inset * 0.3, Math.min(w - 2, 254 - x), 52 - inset);
+      ctx.fillStyle = 'rgba(255,255,255,.18)';
+      ctx.fillRect(x, 6 + inset * 0.3, Math.min(w - 2, 254 - x), 3);
+      x += w;
+    }
     return c;
   });
 }

@@ -73,7 +73,7 @@ export class Board3D implements BoardView {
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.renderer.toneMapping = ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.12;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
     this.renderer.setClearColor(0x000000, 0);
@@ -102,7 +102,7 @@ export class Board3D implements BoardView {
   // ---------- scene setup ----------
 
   private setupLights(): void {
-    const ambient = new AmbientLight('#ffd9a8', 0.42);
+    const ambient = new AmbientLight('#ffd9a8', 0.5);
     const hemi = new HemisphereLight('#8fa6d8', '#5a3a22', 0.55);
     this.moon = new DirectionalLight('#cfdcff', 1.9);
     this.moon.position.set(-6, 11, -4);
@@ -136,8 +136,8 @@ export class Board3D implements BoardView {
 
     // Candle lights on (up to three) table candles.
     for (const p of this.furniture.candles.slice(0, 3)) {
-      const l = new PointLight('#ffa64a', 1.6, 3.2, 1.6);
-      l.position.copy(p).add(new Vector3(0, 0.08, 0));
+      const l = new PointLight('#ffa64a', 0.8, 3.2, 1.6);
+      l.position.copy(p).add(new Vector3(0, 0.3, 0));
       l.userData.base = l.intensity;
       this.candles.push(l);
       this.world.add(l);
@@ -146,7 +146,7 @@ export class Board3D implements BoardView {
     // Overlays.
     const plane = bag.geo(new PlaneGeometry(1, 1));
     plane.rotateX(-Math.PI / 2);
-    this.shade = new InstancedMesh(plane, bag.mat(new MeshBasicMaterial({ color: '#0b0603', transparent: true, opacity: 0.32, depthWrite: false })), N * N);
+    this.shade = new InstancedMesh(plane, bag.mat(new MeshBasicMaterial({ color: '#0b0603', transparent: true, opacity: 0.24, depthWrite: false })), N * N);
     this.shade.position.y = 0.003;
     this.shade.renderOrder = 1;
     this.glow = new InstancedMesh(plane, bag.mat(new MeshBasicMaterial({ color: '#ffc861', transparent: true, opacity: 0.3, depthWrite: false, blending: AdditiveBlending })), N * N);
@@ -169,7 +169,7 @@ export class Board3D implements BoardView {
       const group = c.victim ? factory.victim() : factory.pawn(c);
       const inner = group.getObjectByName('inner') as Group;
       const ring = ringDecal(bag, RING.glow, c.victim ? 1 : 0.84);
-      ring.position.y = 0.008;
+      ring.position.y = 0.035;
       ring.visible = false;
       const lock = lockDecor(bag);
       lock.visible = false;

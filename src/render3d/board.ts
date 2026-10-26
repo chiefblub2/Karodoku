@@ -7,14 +7,14 @@ import {
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Puzzle } from '../core/model';
-import { colOf, rowOf } from '../core/model';
+import { colOf, isBlocking, rowOf } from '../core/model';
 import type { Strings } from '../i18n';
 import type { Bag } from './bag';
 import { FLOOR_TEX_CELLS, baseTopCanvas, floorTexture, plaqueCanvas, woodTexture } from './textures';
 
 export const BASE_MARGIN = 0.62;
-export const WALL_H = 0.3;
-export const WALL_T = 0.12;
+export const WALL_H = 0.32;
+export const WALL_T = 0.13;
 
 /** World position of a cell centre. */
 export function cellCenter(c: number, N: number): { x: number; z: number } {
@@ -129,14 +129,14 @@ function buildWalls(pz: Puzzle, bag: Bag): Group {
   const bodies: BufferGeometry[] = [], caps: BufferGeometry[] = [];
   for (const run of wallRuns(pz)) {
     const outer = run.line === 0 || run.line === N;
-    const t = outer ? WALL_T * 1.25 : WALL_T;
+    const t = outer ? WALL_T * 1.3 : WALL_T;
     const len = run.to - run.from + t;
     // Vertical runs sit a hair lower so overlapping corners never z-fight.
     const h = run.horizontal ? WALL_H : WALL_H - 0.004;
     const mid = (run.from + run.to) / 2 - N / 2;
     const at = run.line - N / 2;
     const body = new RoundedBoxGeometry(run.horizontal ? len : t, h - 0.05, run.horizontal ? t : len, 2, 0.02);
-    const cap = new RoundedBoxGeometry(run.horizontal ? len + 0.02 : t + 0.03, 0.06, run.horizontal ? t + 0.03 : len + 0.02, 2, 0.025);
+    const cap = new RoundedBoxGeometry(run.horizontal ? len + 0.03 : t + 0.05, 0.065, run.horizontal ? t + 0.05 : len + 0.03, 2, 0.028);
     const x = run.horizontal ? mid : at, z = run.horizontal ? at : mid;
     body.translate(x, (h - 0.05) / 2, z);
     cap.translate(x, h - 0.03, z);
@@ -148,40 +148,55 @@ function buildWalls(pz: Puzzle, bag: Bag): Group {
   const capGeo = bag.geo(mergeGeometries(caps));
   bodies.concat(caps).forEach((x) => x.dispose());
   const plaster = bag.mat(new MeshStandardMaterial({ color: '#efe1c4', roughness: 0.92 }));
-  const capTex = bag.tex(woodTexture('#5a3219', 'wallcap'));
+  const capTex = bag.tex(woodTexture('#4a2512', 'wallcap'));
   capTex.repeat.set(0.6, 0.6);
-  const wood = bag.mat(new MeshStandardMaterial({ map: capTex, color: '#c8a080', roughness: 0.5 }));
+  const wood = bag.mat(new MeshStandardMaterial({ map: capTex, color: '#a07858', roughness: 0.42 }));
   const body = new Mesh(bodyGeo, plaster);
   const cap = new Mesh(capGeo, wood);
   for (const m of [body, cap]) { m.castShadow = true; m.receiveShadow = true; g.add(m); }
   return g;
 }
 
-/** Brass plaque on the floor along the north wall of each room's first cell row. */
+/**
+ * Brass name plate on each room's north wall: on the longest stretch of wall above the room,
+ * overhanging into the room it names (a plate always belongs to the room south of its wall).
+ */
 function buildPlaques(pz: Puzzle, t: Strings, bag: Bag): Group {
   const N = pz.size;
   const g = new Group();
-  const seen = new Set<number>();
-  for (let c = 0; c < N * N; c++) {
-    const r = pz.room[c];
-    if (seen.has(r)) continue;
-    seen.add(r);
-    let run = 1;
-    while (colOf(c, N) + run < N && pz.room[c + run] === r && run < 3) run++;
-    const w = Math.min(run, 2.6) - 0.22;
-    const h = 0.2;
-    const tex = new CanvasTexture(plaqueCanvas(t.rooms[pz.rooms[r].type], w / h));
+  const edge = bag.mat(new MeshStandardMaterial({ color: '#7a5418', roughness: 0.35, metalness: 0.8 }));
+  pz.rooms.forEach((room, r) => {
+    // Best run of cells in this room with a wall on their north side: long, and not hidden
+    // behind tall furniture (each blocking cell in the run costs more than a cell of length).
+    let best = { row: 0, from: 0, len: 0, score: -Infinity };
+    for (let row = 0; row < N; row++) {
+      for (let k = 0; k < N; k++) {
+        for (let len = 1; len <= 3 && k + len <= N; len++) {
+          const cells = Array.from({ length: len }, (_, i) => row * N + k + i);
+          if (!cells.every((c) => pz.room[c] === r && (row === 0 || pz.room[c - N] !== r))) break;
+          // Bookcases stand against the north wall and hide a plate completely; tables and plants only nibble at it.
+          const cost = cells.reduce((a, c) => a + (pz.obj[c] === 'shelf' ? 2 : isBlocking(pz.obj[c]) ? 0.45 : 0), 0);
+          const score = Math.min(len, 2.5) - cost - row * 0.05;
+          if (score > best.score) best = { row, from: k, len, score };
+        }
+      }
+    }
+    const w = Math.min(best.len, 3) - 0.26;
+    const d = 0.25;
+    const tex = new CanvasTexture(plaqueCanvas(t.rooms[room.type], w / d));
     tex.colorSpace = SRGBColorSpace;
     tex.anisotropy = 8;
-    const mat = bag.mat(new MeshStandardMaterial({ map: bag.tex(tex), roughness: 0.35, metalness: 0.55, transparent: true }));
-    const mesh = new Mesh(bag.geo(new PlaneGeometry(w, h)), mat);
-    mesh.rotation.x = -Math.PI / 2;
-    const { x, z } = cellCenter(c, N);
-    mesh.position.set(x - 0.5 + 0.11 + w / 2, 0.004, z - 0.5 + WALL_T / 2 + h / 2 + 0.02);
-    mesh.receiveShadow = true;
-    mesh.userData.plaque = r;
-    g.add(mesh);
-  }
+    const face = new Mesh(bag.geo(new PlaneGeometry(w, d)), bag.mat(new MeshStandardMaterial({ map: bag.tex(tex), roughness: 0.32, metalness: 0.6 })));
+    face.rotation.x = -Math.PI / 2;
+    const slab = new Mesh(bag.geo(new RoundedBoxGeometry(w + 0.02, 0.03, d + 0.02, 2, 0.01)), edge);
+    const cx = best.from + best.len / 2 - N / 2;
+    const cz = best.row - N / 2 + 0.07;
+    slab.position.set(cx, WALL_H + 0.02, cz);
+    face.position.set(cx, WALL_H + 0.037, cz);
+    slab.castShadow = true;
+    face.userData.plaque = r;
+    g.add(slab, face);
+  });
   return g;
 }
 

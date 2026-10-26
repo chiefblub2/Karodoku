@@ -12,6 +12,7 @@ import type { Bag } from './bag';
 import { badgeCanvas, chalkCanvas, evidenceCanvas, ringCanvas } from './textures';
 
 export const PAWN_HEIGHT = 0.62;
+export const PAWN_SCALE = 1.1;
 
 function std(bag: Bag, o: ConstructorParameters<typeof MeshStandardMaterial>[0]): MeshStandardMaterial {
   return bag.mat(new MeshStandardMaterial(o));
@@ -48,11 +49,12 @@ export class PawnFactory {
     const inner = new Group(); // animated (hop/squash/wobble) separately from the placement transform
     inner.name = 'inner';
     g.add(inner);
+    g.scale.setScalar(PAWN_SCALE);
     inner.add(mesh(this.body, paint), mesh(this.head, paint, 0, HEAD_Y, 0));
     // Initial badge on the sloped front, tilted up towards the camera.
     const badgeTex = new CanvasTexture(badgeCanvas(c.initial, c.hue));
     badgeTex.colorSpace = SRGBColorSpace;
-    const badge = mesh(bag.geo(new CircleGeometry(0.075, 24)), std(bag, { map: bag.tex(badgeTex), roughness: 0.6 }), 0, 0.2, 0.162, false);
+    const badge = mesh(bag.geo(new CircleGeometry(0.085, 24)), std(bag, { map: bag.tex(badgeTex), roughness: 0.6 }), 0, 0.2, 0.162, false);
     badge.rotation.x = -0.42;
     inner.add(badge);
     if (c.accessory) inner.add(this.accessory(c.accessory));
@@ -85,7 +87,7 @@ export class PawnFactory {
         const straw = std(bag, { color: '#e6cf9c', roughness: 0.85 });
         const ribbon = std(bag, { color: '#a3271c', roughness: 0.6 });
         g.add(
-          mesh(bag.geo(new CylinderGeometry(0.25, 0.26, 0.016, 32)), straw, 0, y + 0.06, 0),
+          mesh(bag.geo(new CylinderGeometry(0.205, 0.21, 0.016, 32)), straw, 0, y + 0.06, 0),
           mesh(bag.geo(new SphereGeometry(0.105, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2)), straw, 0, y + 0.06, 0),
           mesh(bag.geo(new CylinderGeometry(0.107, 0.107, 0.03, 20)), ribbon, 0, y + 0.08, 0),
         );
@@ -104,13 +106,16 @@ export class PawnFactory {
         break;
       }
       case 'flatcap': {
-        const tweed = std(bag, { color: '#6b5a45', roughness: 0.95 });
-        const crown = mesh(bag.geo(new SphereGeometry(0.13, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2)), tweed, 0, y + 0.03, -0.01);
-        crown.scale.set(1, 0.55, 1.1);
-        const visor = mesh(bag.geo(new CylinderGeometry(0.1, 0.1, 0.014, 20, 1, false, -Math.PI / 2, Math.PI)), tweed, 0, y + 0.04, 0.07);
-        visor.scale.set(1.1, 1, 0.9);
-        visor.rotation.x = 0.15;
-        g.add(crown, visor);
+        // Light tweed cap with a long visor pointing forward and a top button: reads from above.
+        const tweed = std(bag, { color: '#b5a282', roughness: 0.95 });
+        const dark = std(bag, { color: '#5e4c33', roughness: 0.9 });
+        const crown = mesh(bag.geo(new SphereGeometry(0.135, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2)), tweed, 0, y + 0.055, -0.015);
+        crown.scale.set(1.05, 0.55, 1.12);
+        const visor = mesh(bag.geo(new CylinderGeometry(0.11, 0.11, 0.016, 20, 1, false, -Math.PI / 2, Math.PI)), dark, 0, y + 0.06, 0.085);
+        visor.scale.set(1.05, 1, 1.15);
+        visor.rotation.x = 0.12;
+        const button = mesh(bag.geo(new SphereGeometry(0.02, 8, 6)), dark, 0, y + 0.13, -0.01);
+        g.add(crown, visor, button);
         break;
       }
       case 'pearls': {
@@ -170,9 +175,9 @@ export class PawnFactory {
     const evTex = new CanvasTexture(evidenceCanvas());
     evTex.colorSpace = SRGBColorSpace;
     const yellow = std(bag, { color: '#f2c230', roughness: 0.5 });
-    const cone = mesh(bag.geo(new ConeGeometry(0.07, 0.15, 4)), yellow, 0.33, 0.075, 0.3);
+    const cone = mesh(bag.geo(new ConeGeometry(0.09, 0.2, 4)), yellow, 0.33, 0.1, 0.3);
     cone.rotation.y = Math.PI / 4;
-    const plate = mesh(bag.geo(new PlaneGeometry(0.07, 0.07)), std(bag, { map: bag.tex(evTex), roughness: 0.5 }), 0.33, 0.07, 0.355, false);
+    const plate = mesh(bag.geo(new PlaneGeometry(0.09, 0.09)), std(bag, { map: bag.tex(evTex), roughness: 0.5 }), 0.33, 0.09, 0.37, false);
     plate.rotation.x = -0.45;
     inner.add(cone, plate);
     return g;

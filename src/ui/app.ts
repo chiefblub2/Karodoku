@@ -39,6 +39,7 @@ export class App {
 
   async start(): Promise<void> {
     purgeLegacy();
+    if (import.meta.env.DEV) (window as unknown as { __app: App }).__app = this;
     this.settings = load('settings', isSettings) ?? defaultSettings();
     setLang(this.settings.lang ?? detectLang());
     configureFeedback(this.settings);
