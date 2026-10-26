@@ -1,6 +1,13 @@
-// Deterministic, seedable random number generator (mulberry32 + string hash).
+// Deterministic, seedable random number generator (mulberry32 seeded by a string hash).
 
-function hashString(str) {
+export interface Rng {
+  next(): number;
+  int(min: number, max: number): number;
+  pick<T>(arr: readonly T[]): T;
+  shuffle<T>(arr: readonly T[]): T[];
+}
+
+function hashString(str: string): number {
   let h = 1779033703 ^ str.length;
   for (let i = 0; i < str.length; i++) {
     h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
@@ -11,8 +18,8 @@ function hashString(str) {
   return (h ^= h >>> 16) >>> 0;
 }
 
-export function makeRng(seed) {
-  let a = hashString(String(seed));
+export function makeRng(seed: string): Rng {
+  let a = hashString(seed);
   const next = () => {
     a = (a + 0x6d2b79f5) | 0;
     let t = Math.imul(a ^ (a >>> 15), 1 | a);
@@ -24,16 +31,18 @@ export function makeRng(seed) {
     int: (min, max) => min + Math.floor(next() * (max - min + 1)),
     pick: (arr) => arr[Math.floor(next() * arr.length)],
     shuffle(arr) {
-      const a = arr.slice();
-      for (let i = a.length - 1; i > 0; i--) {
+      const out = arr.slice();
+      for (let i = out.length - 1; i > 0; i--) {
         const j = Math.floor(next() * (i + 1));
-        [a[i], a[j]] = [a[j], a[i]];
+        [out[i], out[j]] = [out[j], out[i]];
       }
-      return a;
+      return out;
     },
   };
 }
 
-export function randomSeed() {
-  return Math.random().toString(36).slice(2, 8);
+export function randomSeed(): string {
+  const bytes = new Uint8Array(4);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => (b % 36).toString(36)).join('') + Math.floor(Math.random() * 36 * 36).toString(36);
 }

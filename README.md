@@ -1,41 +1,18 @@
 # Karodoku
 
-Generierte Mordrätsel als statische Website für GitHub Pages, optimiert fürs Handy.
-
-## Regeln
-
-- In jeder Zeile und jeder Spalte steht genau eine Person (das Opfer zählt mit).
-- Personen stehen auf freiem Boden, Stühlen, Betten, Teppichen oder in der Badewanne – nie auf Tischen, Pflanzen oder Regalen.
-- Der Täter oder die Täterin war allein mit dem Opfer im Raum.
-- Die Hinweise führen zu genau einer Lösung.
-
-## Funktionen
-
-- Rätsel werden im Browser aus einem Seed erzeugt (`?n=6&d=medium&s=abc123`), daher teilbar per Link
-- Tagesrätsel (Seed = Datum), Größen 5×5 bis 8×8, drei Schwierigkeitsgrade
-- Eindeutigkeit wird von einem Backtracking-Solver geprüft, die Hinweise werden auf eine minimale Menge reduziert
-- Notizen (✕), Hinweise abhaken, Rückgängig, Prüfen, Tipps, Timer, Fortschritt in localStorage
-- Deutsch / Englisch, Dark Mode
+Generierte Mordrätsel – in Arbeit: 3D-Version als hölzernes Puppenhaus (Vite + TypeScript + Three.js).
 
 ## Entwicklung
 
-Kein Build-Schritt nötig:
-
 ```sh
-python3 -m http.server 8000   # http://localhost:8000
-node tests/generate.test.mjs  # Generator prüfen
+npm install
+npm run dev        # Entwicklungsserver
+npm test           # Vitest: Eindeutigkeit, Minimalität, Determinismus, Generierungszeit
+npm run build      # Typecheck + Produktions-Build nach dist/
 ```
-
-## Struktur
-
-| Datei | Inhalt |
-| --- | --- |
-| `js/generator.js` | Grundriss, versteckte Lösung, Möbel, Hinweise, Reduktion |
-| `js/solver.js` | Lösungszähler (Backtracking mit MRV) |
-| `js/model.js` | Möbel, Räume, Personen |
-| `js/i18n.js` | Texte und Hinweis-Formulierungen (DE/EN) |
-| `js/app.js` | Oberfläche und Spiellogik |
 
 ## Deployment
 
-GitHub Pages veröffentlicht die Seite direkt aus dem Branch `main` (Root-Verzeichnis), kein Build nötig.
+Die Seite wird nicht mehr direkt aus dem Branch veröffentlicht, sondern per GitHub Actions gebaut
+(`.github/workflows/deploy.yml`) – bei jedem Push auf `main`.
+Dafür einmalig unter **Settings → Pages → Source** „GitHub Actions“ auswählen.
