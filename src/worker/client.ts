@@ -17,7 +17,11 @@ function getWorker(): Worker | null {
       const job = pending.get(e.data.id);
       if (!job) return;
       pending.delete(e.data.id);
-      if (e.data.ok) { lastGenerationMs = e.data.ms; job.resolve(e.data.puzzle); }
+      if (e.data.ok) {
+        lastGenerationMs = e.data.ms;
+        performance.measure('karodoku-generate', { start: performance.now() - e.data.ms, duration: e.data.ms });
+        job.resolve(e.data.puzzle);
+      }
       else job.reject(new Error(e.data.error));
     };
     worker.onerror = () => {

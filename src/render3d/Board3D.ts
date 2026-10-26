@@ -6,7 +6,7 @@ import {
   PointLight, Quaternion, Raycaster, Scene, SpotLight, SRGBColorSpace, TubeGeometry, Vector2, Vector3, WebGLRenderer,
   AdditiveBlending,
 } from 'three';
-import type { ObjectType, Puzzle } from '../core/model';
+import type { Puzzle } from '../core/model';
 import { isBlocking } from '../core/model';
 import { s } from '../i18n';
 import { reducedMotion } from '../ui/dom';
@@ -20,7 +20,6 @@ import { buildFurniture, surfaceOf } from './furniture';
 import type { FurnitureParts } from './furniture';
 import { Loop, ease, tween } from './loop';
 import { burst } from './particles';
-import { furnitureThumbnails } from './thumbs';
 import { PawnFactory, ghostOf, lockDecor, ringDecal } from './pawns';
 import { markCanvas, setMaxAnisotropy, softSquareCanvas } from './textures';
 
@@ -591,8 +590,6 @@ export class Board3D implements BoardView {
   }
 
   measuredFps(): number | null { return this.loop.fps(); }
-
-  thumbnails(): Partial<Record<ObjectType, string>> { return furnitureThumbnails(); }
 
   /** For screenshots/tests: render synchronously. */
   renderNow(): void { this.draw(); }

@@ -300,15 +300,24 @@ function flagstones(seed: string): HTMLCanvasElement {
       ctx.fill();
     }
   }
-  const img = ctx.getImageData(0, 0, FS, FS);
-  for (let y = 0; y < FS; y++) {
-    for (let x = 0; x < FS; x++) {
-      const k = (y * FS + x) * 4;
-      const nv = (noise(x / 24, y / 24) - 0.5) * 26 + (rng.next() - 0.5) * 6;
-      img.data[k] += nv; img.data[k + 1] += nv; img.data[k + 2] += nv;
+  // Mottling: a small noise canvas blended over the stones (cheap, upscaled).
+  const M = 128;
+  const [mot, mctx] = canvas(M);
+  const img = mctx.createImageData(M, M);
+  for (let y = 0; y < M; y++) {
+    for (let x = 0; x < M; x++) {
+      const v = 128 + (noise(x / 6, y / 6) - 0.5) * 120 + (rng.next() - 0.5) * 30;
+      const k = (y * M + x) * 4;
+      img.data[k] = img.data[k + 1] = img.data[k + 2] = v;
+      img.data[k + 3] = 255;
     }
   }
-  ctx.putImageData(img, 0, 0);
+  mctx.putImageData(img, 0, 0);
+  ctx.globalCompositeOperation = 'overlay';
+  ctx.globalAlpha = 0.45;
+  ctx.drawImage(mot, 0, 0, FS, FS);
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
   return c;
 }
 
@@ -316,18 +325,23 @@ function marble(seed: string): HTMLCanvasElement {
   const [c, ctx] = canvas(FS);
   const rng = makeRng(seed);
   const noise = valueNoise(rng, 64);
-  const img = ctx.createImageData(FS, FS);
-  for (let y = 0; y < FS; y++) {
-    for (let x = 0; x < FS; x++) {
-      let n = 0, amp = 1, f = 1 / 64;
+  // Veins are soft, so compute them at half resolution and scale up (4× cheaper).
+  const H = FS / 2;
+  const [small, sctx] = canvas(H);
+  const img = sctx.createImageData(H, H);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < H; x++) {
+      let n = 0, amp = 1, f = 1 / 32;
       for (let o = 0; o < 4; o++) { n += noise(x * f, y * f) * amp; amp *= 0.5; f *= 2; }
-      const vein = Math.abs(Math.sin((x * 0.012 + y * 0.02 + n * 4) * Math.PI));
+      const vein = Math.abs(Math.sin((x * 0.024 + y * 0.04 + n * 4) * Math.PI));
       const v = 236 - (1 - vein) ** 6 * 90 - n * 8;
-      const k = (y * FS + x) * 4;
+      const k = (y * H + x) * 4;
       img.data[k] = v; img.data[k + 1] = v - 3; img.data[k + 2] = v - 8; img.data[k + 3] = 255;
     }
   }
-  ctx.putImageData(img, 0, 0);
+  sctx.putImageData(img, 0, 0);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(small, 0, 0, FS, FS);
   // Large tiles with dark cabochons at the corners.
   const t = FS / 2;
   ctx.strokeStyle = 'rgba(70,60,50,.45)';

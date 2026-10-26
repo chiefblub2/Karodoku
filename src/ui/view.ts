@@ -1,6 +1,6 @@
 // Contract between the app and the board renderers (2D SVG and 3D WebGL).
 
-import type { Accessory, ObjectType, Puzzle } from '../core/model';
+import type { Accessory, Puzzle } from '../core/model';
 
 export interface CastEntry {
   /** Person index in the puzzle. */
@@ -55,8 +55,6 @@ export interface BoardView {
   resize(): void;
   dispose(): void;
   onIntent: (i: Intent) => void;
-  /** Legend icons rendered in the view's style (3D only). */
-  thumbnails?(): Partial<Record<ObjectType, string>>;
   /** Average FPS while animating (3D only), for the low-performance fallback. */
   measuredFps?(): number | null;
 }

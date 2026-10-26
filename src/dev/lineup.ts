@@ -8,7 +8,16 @@ import { Bag } from '../render3d/bag';
 import { buildPiece } from '../render3d/furniture';
 import { PawnFactory } from '../render3d/pawns';
 
-const view = new URLSearchParams(location.search).get('view') ?? 'side';
+const params = new URLSearchParams(location.search);
+const view = params.get('view') ?? 'side';
+if (params.has('thumbs')) {
+  // Used by scripts/bake-thumbs.cjs to bake the legend icons into public/thumbs/.
+  void import('../render3d/thumbs').then(({ furnitureThumbnails }) => {
+    (window as unknown as { thumbs: unknown }).thumbs = furnitureThumbnails(128);
+    (window as unknown as { ready: boolean }).ready = true;
+  });
+  throw new Error('thumbs only');
+}
 const renderer = new WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(2);
 renderer.setSize(innerWidth, innerHeight);

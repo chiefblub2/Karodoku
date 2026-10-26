@@ -14,7 +14,7 @@ import { defaultSettings, isSettings, load, purgeLegacy, save } from '../state/p
 import { generatePuzzle } from '../worker/client';
 import { $, esc, fmtTime, isDailySeed, reducedMotion, today } from './dom';
 import { configureFeedback, play, vibrate } from './feedback';
-import { chalkSvg, furnitureIcon, icon, pawnSvg } from './icons';
+import { chalkSvg, icon, pawnSvg } from './icons';
 import { showDialog, toast } from './overlay';
 import type { BoardView, CastEntry, Intent, Tool, ViewModel } from './view';
 import { createView } from './view-factory';
@@ -119,6 +119,7 @@ export class App {
     this.startTimer();
     if (this.game.progress.solved) this.refreshView();
     this.watchPerformance();
+    if (!performance.getEntriesByName('karodoku-ready').length) performance.mark('karodoku-ready');
   }
 
   /** Offer the 2D view once if the 3D view animates slowly during the first seconds. */
@@ -140,11 +141,21 @@ export class App {
   async ensureView(): Promise<void> {
     const want = this.webglFailed ? '2d' : this.settings.renderer;
     if (this.view && this.view.kind === want) return;
+    if (want === '3d' && !this.view) {
+      // First paint: the light 2D board is playable at once; the 3D scene loads behind it.
+      this.attachView(await createView('2d'));
+      void this.upgradeTo3d();
+      return;
+    }
     this.view?.dispose();
-    const host = $('#board-host');
-    const v = await createView(this.webglFailed ? '2d' : want);
+    const v = await createView(want);
     if (v.kind !== want && !this.webglFailed) { this.webglFailed = true; toast(s().noWebgl); }
-    v.mount(host);
+    this.attachView(v);
+  }
+
+  private attachView(v: BoardView, mount = true): void {
+    const host = $('#board-host');
+    if (mount) v.mount(host);
     v.onIntent = (i) => this.onIntent(i);
     host.querySelector('canvas')?.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
@@ -154,6 +165,34 @@ export class App {
     }, { once: true });
     this.view = v;
     document.body.dataset.renderer = v.kind;
+  }
+
+  /** Load the 3D view in the background and cross-fade to it once its first frame is ready. */
+  private async upgradeTo3d(): Promise<void> {
+    const v = await createView('3d');
+    if (v.kind !== '3d') { this.webglFailed = true; toast(s().noWebgl); return; }
+    // Let the 2D board settle and take input before the heavy scene build.
+    await new Promise((r) => ('requestIdleCallback' in window ? requestIdleCallback(r, { timeout: 600 }) : setTimeout(r, 200)));
+    if (this.settings.renderer !== '3d' || this.view?.kind === '3d' || !this.pz || !this.game) { v.dispose(); return; }
+    const old = this.view;
+    const host = $('#board-host');
+    v.mount(host);
+    const canvas = host.querySelector<HTMLCanvasElement>('canvas.board3d');
+    if (canvas) canvas.style.opacity = '0';
+    v.setPuzzle(this.pz, this.cast);
+    v.update(this.viewModel());
+    const fresh = !this.game.resumed && !this.game.progress.pos.some((c) => c >= 0);
+    v.fx({ type: 'intro', animate: fresh && !reducedMotion() });
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    if (canvas) {
+      canvas.style.transition = 'opacity .35s ease';
+      canvas.style.opacity = '1';
+    }
+    // Input goes to the 3D view right away; the 2D board is dropped after the fade.
+    this.attachView(v, false);
+    window.setTimeout(() => { old?.dispose(); if (canvas) canvas.style.transition = ''; }, 400);
+    performance.mark('karodoku-3d');
+    this.watchPerformance();
   }
 
   async switchRenderer(kind: '2d' | '3d'): Promise<void> {
@@ -430,11 +469,10 @@ export class App {
     const g = this.game!;
     const t = s();
     const present = new Set(g.pz.obj.filter(Boolean));
-    const thumbs = this.view?.thumbnails?.() ?? {};
     const html = OBJECT_TYPES.filter((o) => present.has(o)).map((o) => {
       const ok = OCCUPIABLE.has(o);
-      const thumb = thumbs[o];
-      const art = thumb ? `<img class="legend-icon" src="${thumb}" alt="">` : furnitureIcon(o, 'legend-icon');
+      // Icons baked from the 3D models (scripts/bake-thumbs.cjs).
+      const art = `<img class="legend-icon" src="${import.meta.env.BASE_URL}thumbs/${o}.webp" alt="" width="34" height="34">`;
       return `<li class="${ok ? 'ok' : 'no'}">${art}<span>${esc(t.objects[o])}</span>
         <span class="legend-tag">${ok ? '✓ ' + esc(t.objectCanStand) : '✕ ' + esc(t.objectBlocks)}</span></li>`;
     }).join('');
