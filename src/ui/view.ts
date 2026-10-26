@@ -34,7 +34,9 @@ export interface ViewModel {
 export type Intent =
   | { type: 'tap'; cell: number }
   | { type: 'longpress'; cell: number }
-  | { type: 'hover'; cell: number };
+  | { type: 'hover'; cell: number }
+  /** A room's name plaque was tapped or held: name the room, never place or mark. */
+  | { type: 'room'; room: number };
 
 export type Fx =
   | { type: 'placed'; p: number; cell: number; from: number }

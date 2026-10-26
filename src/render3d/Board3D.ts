@@ -94,6 +94,7 @@ export class Board3D implements BoardView {
     this.resizeObs.observe(host);
     this.detachPointer = attachPointer(canvas, {
       pick: (x, y) => this.pick(x, y),
+      pickRoom: (x, y) => this.pickPlaque(x, y),
       emit: (i) => { this.wake(); this.onIntent(i); },
       busy: () => this.gestureBusy,
     });
@@ -503,11 +504,25 @@ export class Board3D implements BoardView {
   private raycaster = new Raycaster();
   private ground = new Plane(new Vector3(0, 1, 0), 0);
 
-  private pick(clientX: number, clientY: number): number {
-    if (!this.pz) return -1;
+  private aim(clientX: number, clientY: number): void {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndc = new Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.rig.camera);
+  }
+
+  /** Room of the name plaque under the pointer (its hit box sits above the floor), −1 for none. */
+  private pickPlaque(clientX: number, clientY: number): number {
+    if (!this.pz || !this.board) return -1;
+    this.aim(clientX, clientY);
+    for (const h of this.raycaster.intersectObject(this.board.plaques, true)) {
+      if (typeof h.object.userData.plaque === 'number') return h.object.userData.plaque;
+    }
+    return -1;
+  }
+
+  private pick(clientX: number, clientY: number): number {
+    if (!this.pz) return -1;
+    this.aim(clientX, clientY);
     const hit = new Vector3();
     if (!this.raycaster.ray.intersectPlane(this.ground, hit)) return -1;
     const N = this.pz.size;

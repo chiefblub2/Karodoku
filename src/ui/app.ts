@@ -31,6 +31,9 @@ export class App {
   selectedCell = -1;
   hoverCell = -1;
   focusClue = -1;
+  /** Room briefly highlighted after its plaque was tapped, −1 for none. */
+  pulseRoom = -1;
+  private pulseTimer = 0;
   private timer = 0;
   private perfAsked = false;
   private webglFailed = false;
@@ -112,6 +115,7 @@ export class App {
     this.tool = this.firstUnplaced() ?? 0;
     this.selectedCell = -1;
     this.focusClue = -1;
+    this.pulseRoom = -1;
     await this.ensureView();
     this.view!.setPuzzle(pz, this.cast);
     this.view!.fx({ type: 'intro', animate: !this.game.resumed && !reducedMotion() });
@@ -234,6 +238,7 @@ export class App {
       this.refreshView();
       return;
     }
+    if (i.type === 'room') { this.showRoom(i.room); return; }
     if (g.progress.solved) return;
     this.selectedCell = i.cell;
     this.showRoomBanner(i.cell);
@@ -321,7 +326,7 @@ export class App {
       tool: this.tool,
       selectedCell: this.selectedCell,
       hoverCell: this.hoverCell,
-      highlightRooms: new Set(refs.rooms),
+      highlightRooms: new Set(this.pulseRoom >= 0 ? [...refs.rooms, this.pulseRoom] : refs.rooms),
       highlightPeople: new Set(refs.people),
       solved: g.progress.solved,
     };
@@ -522,12 +527,27 @@ export class App {
     if (focusedIdx >= 0) grid.querySelector<HTMLElement>(`[data-cell="${focusedIdx}"]`)?.focus();
   }
 
+  /** A tapped plaque: name the room and let it glow for a moment; the game itself is untouched. */
+  showRoom(room: number): void {
+    const name = s().rooms[this.game!.pz.rooms[room].type];
+    this.flashBanner(`<b>${esc(name)}</b>`);
+    this.announce(name);
+    this.pulseRoom = room;
+    clearTimeout(this.pulseTimer);
+    this.pulseTimer = window.setTimeout(() => { this.pulseRoom = -1; this.refreshView(); }, 1500);
+    this.refreshView();
+  }
+
   showRoomBanner(cell: number): void {
     const g = this.game!;
     const t = s();
     const o = g.pz.obj[cell];
+    this.flashBanner(`<b>${esc(t.rooms[g.pz.rooms[g.pz.room[cell]].type])}</b> · ${cellName(cell, g.size)}${o ? ` · ${esc(t.objects[o])}` : ''}`);
+  }
+
+  private flashBanner(html: string): void {
     const el = $('#room-banner');
-    el.innerHTML = `<b>${esc(t.rooms[g.pz.rooms[g.pz.room[cell]].type])}</b> · ${cellName(cell, g.size)}${o ? ` · ${esc(t.objects[o])}` : ''}`;
+    el.innerHTML = html;
     el.classList.add('show');
     clearTimeout((el as unknown as { _t: number })._t);
     (el as unknown as { _t: number })._t = window.setTimeout(() => el.classList.remove('show'), 1600);

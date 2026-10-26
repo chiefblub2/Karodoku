@@ -1,4 +1,4 @@
-// Shared pointer handling for board views: tap, long-press (mark), hover (ghost pawn).
+// Shared pointer handling for board views: tap, long-press (mark), hover (ghost pawn), room plaques.
 
 import type { Intent } from './view';
 
@@ -8,6 +8,8 @@ const MOVE_TOLERANCE = 10;
 export interface PointerOptions {
   /** Map client coordinates to a cell, −1 if outside the board. */
   pick(x: number, y: number): number;
+  /** Room whose name plaque is under the pointer, −1 for none. Checked before `pick`. */
+  pickRoom?(x: number, y: number): number;
   emit(i: Intent): void;
   /** Return true to swallow a pointerdown (e.g. multi-touch pinch in progress). */
   busy?(): boolean;
@@ -28,24 +30,28 @@ export function attachPointer(el: HTMLElement, opt: PointerOptions): () => void 
     if (downId >= 0 || opt.busy?.()) { cancel(); return; }
     downId = e.pointerId; downX = e.clientX; downY = e.clientY;
     longFired = false; cancelled = false;
-    const cell = opt.pick(e.clientX, e.clientY);
+    const room = opt.pickRoom?.(e.clientX, e.clientY) ?? -1;
+    const cell = room >= 0 ? -1 : opt.pick(e.clientX, e.clientY);
     if (e.pointerType !== 'mouse') hover(cell);
     clearTimeout(timer);
     timer = window.setTimeout(() => {
-      if (cancelled || cell < 0) return;
+      if (cancelled || (cell < 0 && room < 0)) return;
       longFired = true;
-      opt.emit({ type: 'longpress', cell });
+      // Holding a plaque only names the room, it never marks a cell.
+      opt.emit(room >= 0 ? { type: 'room', room } : { type: 'longpress', cell });
     }, LONG_PRESS_MS);
   };
 
   const cancel = () => { cancelled = true; clearTimeout(timer); downId = -1; };
 
+  const cellAt = (x: number, y: number) => ((opt.pickRoom?.(x, y) ?? -1) >= 0 ? -1 : opt.pick(x, y));
+
   const onMove = (e: PointerEvent) => {
     if (e.pointerId === downId) {
       if (Math.hypot(e.clientX - downX, e.clientY - downY) > MOVE_TOLERANCE) { cancelled = true; clearTimeout(timer); }
-      if (e.pointerType !== 'mouse') hover(opt.pick(e.clientX, e.clientY));
+      if (e.pointerType !== 'mouse') hover(cellAt(e.clientX, e.clientY));
     }
-    if (e.pointerType === 'mouse') hover(opt.pick(e.clientX, e.clientY));
+    if (e.pointerType === 'mouse') hover(cellAt(e.clientX, e.clientY));
   };
 
   const onUp = (e: PointerEvent) => {
@@ -54,6 +60,8 @@ export function attachPointer(el: HTMLElement, opt: PointerOptions): () => void 
     downId = -1;
     if (e.pointerType !== 'mouse') hover(-1);
     if (cancelled || longFired || opt.busy?.()) return;
+    const room = opt.pickRoom?.(e.clientX, e.clientY) ?? -1;
+    if (room >= 0) { opt.emit({ type: 'room', room }); return; }
     const cell = opt.pick(e.clientX, e.clientY);
     if (cell >= 0) opt.emit({ type: 'tap', cell });
   };

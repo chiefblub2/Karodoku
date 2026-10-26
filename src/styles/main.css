@@ -132,7 +132,8 @@ h1, h2, h3 { font-family: var(--serif); margin: 0; }
 .board2d .wall { fill: none; stroke: #f0e3c8; stroke-width: .1; stroke-linecap: square; }
 .board2d .wall.outer { stroke-width: .12; }
 .board2d .coord { font: 700 .26px var(--serif); fill: #f0e3c8; text-anchor: middle; dominant-baseline: central; }
-.board2d .plaque { font: 700 .13px system-ui, sans-serif; fill: #2a1d16; opacity: .75; }
+.board2d .plaque { font: 700 .13px system-ui, sans-serif; fill: #2a1d16; opacity: .75; text-anchor: middle; pointer-events: none; }
+.board2d .plaque-hit { fill: transparent; }
 .board2d .shade rect { fill: #1a0f08; opacity: .22; }
 .board2d .room-glow { fill: #ffd277; opacity: .35; animation: glow 1.2s ease-in-out infinite alternate; }
 .board2d .sel { fill: none; stroke: #ffd277; stroke-width: .05; }
