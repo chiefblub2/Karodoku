@@ -66,8 +66,8 @@ export function pawnSvg(hue: number, accessory: Accessory | null, initial: strin
     <circle cx="50" cy="29" r="15" fill="${body}" stroke="${dark}" stroke-width="2.5"/>
     <circle cx="45" cy="24" r="4" fill="${light}" opacity=".8"/>
     ${accessory ? ACCESSORY_SVG[accessory] : ''}
-    <circle cx="50" cy="73" r="10" fill="#f6ecd6" stroke="${dark}" stroke-width="2"/>
-    <text x="50" y="77.5" text-anchor="middle" font-size="13" font-weight="800" font-family="Georgia,serif" fill="${dark}">${initial}</text>
+    <circle cx="50" cy="69" r="17" fill="#f6ecd6" stroke="${dark}" stroke-width="3"/>
+    <text x="50" y="77" text-anchor="middle" font-size="24" font-weight="900" font-family="Georgia,serif" fill="${dark}">${initial}</text>
   </svg>`;
 }
 

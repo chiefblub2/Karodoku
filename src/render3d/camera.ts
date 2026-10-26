@@ -15,10 +15,12 @@ export class CameraRig {
   pan = { x: 0, z: 0 };
   private aspect = 1;
   private extent = 5; // half-size of the board incl. base, in world units
-  private margin = 1.04;
+  private center = 0; // world x and z of the base's centre
+  private margin = 1.02;
 
-  setBoard(halfExtent: number): void {
+  setBoard(halfExtent: number, center = 0): void {
     this.extent = halfExtent;
+    this.center = center;
     this.zoom = 1;
     this.pan = { x: 0, z: 0 };
   }
@@ -36,7 +38,7 @@ export class CameraRig {
     const dist = 30;
     // Camera sits south of the board (screen-top = north) and looks down at the tilt angle.
     const dir = new Vector3(Math.sin(yaw) * Math.sin(tilt), Math.cos(tilt), Math.cos(yaw) * Math.sin(tilt));
-    const target = new Vector3(this.pan.x, 0, this.pan.z);
+    const target = new Vector3(this.center + this.pan.x, 0, this.center + this.pan.z);
     this.camera.position.copy(target).addScaledVector(dir, dist);
     this.camera.up.set(0, 1, 0);
     this.camera.lookAt(target);

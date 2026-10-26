@@ -413,30 +413,31 @@ export function woodTexture(base: string, key: string): Texture {
 }
 
 /** Board-game box top: walnut frame with burned-in coordinates, transparent board area. */
-export function baseTopCanvas(N: number, margin: number): HTMLCanvasElement {
-  return cached(`basetop:${N}:${margin}`, () => {
-    const W = N + margin * 2;
+/** Frame around the board: `margin` wide on the north and west (with coordinates), `far` on the south and east. */
+export function baseTopCanvas(N: number, margin: number, far = margin): HTMLCanvasElement {
+  return cached(`basetop:${N}:${margin}:${far}`, () => {
+    const W = N + margin + far;
     const px = 1024;
     const u = px / W;
     const [c, ctx] = canvas(px);
     const rng = makeRng('base' + N);
     // Concentric frame planks (mitred look).
-    const band = margin * u;
+    const band = margin * u, bandFar = far * u;
     woodRect(ctx, 0, 0, px, band, '#5a3219', rng, true, 1.1);
-    woodRect(ctx, 0, px - band, px, band, '#5a3219', rng, true, 1.1);
+    woodRect(ctx, 0, px - bandFar, px, bandFar, '#5a3219', rng, true, 1.1);
     woodRect(ctx, 0, 0, band, px, '#55301a', rng, false, 1.1);
-    woodRect(ctx, px - band, 0, band, px, '#55301a', rng, false, 1.1);
+    woodRect(ctx, px - bandFar, 0, bandFar, px, '#55301a', rng, false, 1.1);
     ctx.strokeStyle = 'rgba(20,8,0,.45)';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(0, 0); ctx.lineTo(band, band); ctx.moveTo(px, 0); ctx.lineTo(px - band, band);
-    ctx.moveTo(0, px); ctx.lineTo(band, px - band); ctx.moveTo(px, px); ctx.lineTo(px - band, px - band);
+    ctx.moveTo(0, 0); ctx.lineTo(band, band); ctx.moveTo(px, 0); ctx.lineTo(px - bandFar, band);
+    ctx.moveTo(0, px); ctx.lineTo(band, px - bandFar); ctx.moveTo(px, px); ctx.lineTo(px - bandFar, px - bandFar);
     ctx.stroke();
     // Brass inlay line around the board.
     ctx.strokeStyle = '#c69a45';
     ctx.lineWidth = Math.max(2, u * 0.035);
     ctx.strokeRect(band - u * 0.12, band - u * 0.12, N * u + u * 0.24, N * u + u * 0.24);
-    // Burned coordinates on all four sides.
+    // Burned coordinates on the top and left edges.
     ctx.fillStyle = '#e9d4a8';
     ctx.font = `700 ${Math.round(u * 0.36)}px Georgia, serif`;
     ctx.textAlign = 'center';
@@ -448,9 +449,7 @@ export function baseTopCanvas(N: number, margin: number): HTMLCanvasElement {
       const pos = band + (i + 0.5) * u;
       const letter = String.fromCharCode(65 + i);
       ctx.fillText(letter, pos, band * 0.48);
-      ctx.fillText(letter, pos, px - band * 0.48);
       ctx.fillText(String(i + 1), band * 0.5, pos);
-      ctx.fillText(String(i + 1), px - band * 0.5, pos);
     }
     return c;
   });
@@ -614,6 +613,27 @@ export function badgeCanvas(initial: string, hue: number): HTMLCanvasElement {
     ctx.stroke();
     ctx.fillStyle = `hsl(${hue} 55% 26%)`;
     ctx.font = '800 82px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(initial, 64, 70);
+    return c;
+  });
+}
+
+/** Top-down initial disc: the suspect's colour with a large cream letter. */
+export function initialCapCanvas(initial: string, hue: number): HTMLCanvasElement {
+  return cached(`cap:${initial}:${hue}`, () => {
+    const [c, ctx] = canvas(128);
+    ctx.fillStyle = '#f6ecd6';
+    ctx.beginPath();
+    ctx.arc(64, 64, 63, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = `hsl(${hue} 60% 34%)`;
+    ctx.beginPath();
+    ctx.arc(64, 64, 54, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fbf3e2';
+    ctx.font = '900 84px Georgia, serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(initial, 64, 70);

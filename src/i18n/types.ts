@@ -28,6 +28,8 @@ export interface Strings {
   objectCanStand: string;
   objectBlocks: string;
   weapons: Record<Weapon, string>;
+  /** Weapon names on their own (case strip). */
+  weaponNames: Record<Weapon, string>;
   accessories: Record<Accessory, string>;
   roles: Record<string, string>;
   bios: Record<string, string>;
@@ -37,6 +39,8 @@ export interface Strings {
   mark: string;
   markHint: string;
   story(victim: string, weapon: string): string;
+  /** Short case summary for the strip under the header. */
+  caseLine(weapon: string): string;
   generating: string;
   blocked(object: ObjectType): string;
   allCorrectSoFar: string;

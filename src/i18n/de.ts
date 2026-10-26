@@ -31,6 +31,10 @@ export const de: Strings = {
     candlestick: 'einem Kerzenleuchter', rope: 'einem Seil', dagger: 'einem Dolch', poison: 'Gift',
     revolver: 'einem Revolver', wrench: 'einer Rohrzange', vase: 'einer Vase', teapot: 'einer Teekanne',
   },
+  weaponNames: {
+    candlestick: 'Kerzenleuchter', rope: 'Seil', dagger: 'Dolch', poison: 'Gift',
+    revolver: 'Revolver', wrench: 'Rohrzange', vase: 'Vase', teapot: 'Teekanne',
+  },
   accessories: {
     bun: 'Haarknoten', tophat: 'Zylinder', widehat: 'breiter Hut', glasses: 'runde Brille',
     flatcap: 'Schiebermütze', pearls: 'Perlenkette', toque: 'Kochmütze', feather: 'Feder',
@@ -55,6 +59,7 @@ export const de: Strings = {
   mark: 'Notiz',
   markHint: 'Feld lange drücken setzt oder entfernt ein ✕.',
   story: (v, w) => `${v} wurde mit ${w} ermordet. Wer war allein mit ihm im Raum?`,
+  caseLine: (w) => `Tatwaffe: ${w} · Wer war’s?`,
   generating: 'Fall wird vorbereitet…',
   blocked: (o) => `Auf ${OBJ_ACC[o]} kann niemand stehen.`,
   allCorrectSoFar: 'Bisher alles richtig!',

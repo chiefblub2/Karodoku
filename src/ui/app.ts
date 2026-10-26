@@ -37,6 +37,7 @@ export class App {
   pulseRoom = -1;
   private pulseTimer = 0;
   private bannerTimer = 0;
+  private labelTimer = 0;
   private timer = 0;
   private perfAsked = false;
   private webglFailed = false;
@@ -247,6 +248,7 @@ export class App {
       this.pressCell = i.cell;
       if (i.cell >= 0) this.showRoomBanner(i.cell, true);
       else this.hideBanner();
+      if (i.cell >= 0 && g.personAt(i.cell) >= 0) this.showName(g.personAt(i.cell));
       this.refreshView();
       return;
     }
@@ -273,6 +275,7 @@ export class App {
         vibrate(10);
         this.tool = this.firstUnplaced(e.p) ?? this.tool;
         this.announce(`${this.cast[e.p].name}: ${cellName(e.cell, g.size)}`);
+        this.showName(e.p);
         break;
       case 'removed':
         this.view?.fx({ type: 'removed', p: e.p, cell: e.cell });
@@ -294,6 +297,7 @@ export class App {
       case 'hint':
         this.view?.fx({ type: 'placed', p: e.p, cell: e.cell, from: -1 });
         toast(t.hintUsed(this.cast[e.p].name));
+        this.showName(e.p);
         this.tool = this.firstUnplaced(e.p) ?? this.tool;
         break;
       case 'check':
@@ -354,7 +358,7 @@ export class App {
     if (!this.game) return;
     const t = s();
     const pz = this.game.pz;
-    $('#case-story').textContent = t.story(VICTIM_NAME, t.weapons[pz.weapon]);
+    $('#case-story').innerHTML = `<span class="short">${esc(t.caseLine(t.weaponNames[pz.weapon]))}</span><span class="full">${esc(t.story(VICTIM_NAME, t.weapons[pz.weapon]))}</span>`;
     $('#btn-case').innerHTML = `${icon('case')}<span>${isDailySeed(pz.seed) ? t.dailyShort : t.newCase}</span>
       <small>${pz.size}×${pz.size} · ${t.difficulties[pz.difficulty]}</small>`;
     this.renderLegend();
@@ -406,7 +410,13 @@ export class App {
       aria-label="${esc(t.mark)}"><span class="chip-art mark-art">${icon('mark')}</span><span class="chip-name">${esc(t.mark)}</span></button>`);
     const pal = $('#palette');
     pal.innerHTML = chips.join('');
-    pal.classList.toggle('crowded', chips.length > 6);
+    // The palette scrolls sideways on 8×8 phones: keep the selected chip in view.
+    const active = pal.querySelector<HTMLElement>('.chip.active');
+    if (active && pal.scrollWidth > pal.clientWidth) {
+      const l = active.offsetLeft - pal.offsetLeft, r = l + active.offsetWidth;
+      if (l < pal.scrollLeft) pal.scrollLeft = l - 2;
+      else if (r > pal.scrollLeft + pal.clientWidth) pal.scrollLeft = r - pal.clientWidth + 2;
+    }
   }
 
   segmentsHtml(segs: Segment[]): string {
@@ -591,6 +601,24 @@ export class App {
   hideBanner(): void {
     clearTimeout(this.bannerTimer);
     $('#room-banner').classList.remove('show');
+  }
+
+  /** Name tag above a pawn for about 1.5 s (screen readers get the #live announcement instead). */
+  showName(p: number): void {
+    const g = this.game, c = this.cast[p];
+    const cell = g?.progress.pos[p] ?? -1;
+    const el = document.getElementById('pawn-label');
+    const at = cell >= 0 ? this.view?.anchor(cell) : null;
+    if (!el || !at || !c) return;
+    const area = el.parentElement!.getBoundingClientRect();
+    el.textContent = c.name;
+    el.style.setProperty('--ph', String(c.hue));
+    const half = el.offsetWidth / 2 + 4;
+    el.style.left = `${Math.min(area.width - half, Math.max(half, at.x - area.left))}px`;
+    el.style.top = `${Math.max(el.offsetHeight + 4, at.y - area.top)}px`;
+    el.classList.add('show');
+    clearTimeout(this.labelTimer);
+    this.labelTimer = window.setTimeout(() => el.classList.remove('show'), 1500);
   }
 
   announce(msg: string): void { $('#live').textContent = msg; }
@@ -891,7 +919,13 @@ export class App {
     });
     grid.addEventListener('focusin', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-cell]');
-      if (b && this.game) { this.selectedCell = Number(b.dataset.cell); this.hoverCell = this.selectedCell; this.refreshView(); }
+      if (b && this.game) {
+        this.selectedCell = Number(b.dataset.cell);
+        this.hoverCell = this.selectedCell;
+        this.refreshView();
+        const p = this.game.personAt(this.selectedCell);
+        if (p >= 0) this.showName(p);
+      }
     });
     grid.addEventListener('keydown', (e) => {
       if (!this.game) return;
