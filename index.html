@@ -46,6 +46,7 @@
     </main>
 
     <section class="dock">
+      <div class="sheet-slot">
       <div id="clue-sheet" class="clue-sheet">
         <div class="sheet-grip" aria-hidden="true"></div>
         <button id="clue-bar" class="clue-bar" type="button" aria-expanded="false"></button>
@@ -58,11 +59,13 @@
           <ul id="sheet-legend" class="legend" hidden></ul>
         </div>
       </div>
+      </div>
       <div id="palette" class="palette" role="toolbar"></div>
       <div id="actions" class="actions" role="toolbar"></div>
     </section>
   </div>
 
+  <div id="sheet-backdrop" class="sheet-backdrop" hidden></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <div id="live" class="sr-only" aria-live="polite"></div>
   <noscript>Karodoku benötigt JavaScript.</noscript>

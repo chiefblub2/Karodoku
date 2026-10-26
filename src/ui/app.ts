@@ -164,7 +164,7 @@ export class App {
     await this.ensureView();
     this.view!.setPuzzle(this.pz, this.cast);
     this.view!.fx({ type: 'intro', animate: false });
-    this.refreshView();
+    this.renderAll();
   }
 
   startTimer(): void {
@@ -343,7 +343,9 @@ export class App {
     });
     chips.push(`<button type="button" class="chip tool${this.tool === 'mark' ? ' active' : ''}" data-person="mark" aria-pressed="${this.tool === 'mark'}"
       aria-label="${esc(t.mark)}"><span class="chip-art mark-art">${icon('mark')}</span><span class="chip-name">${esc(t.mark)}</span></button>`);
-    $('#palette').innerHTML = chips.join('');
+    const pal = $('#palette');
+    pal.innerHTML = chips.join('');
+    pal.classList.toggle('crowded', chips.length > 6);
   }
 
   segmentsHtml(segs: Segment[]): string {
@@ -378,17 +380,62 @@ export class App {
     $('#sheet-clues').innerHTML = html;
     const open = g.pz.clues.map((_, i) => i).filter((i) => !g.progress.struck.includes(i));
     const first = this.focusClue >= 0 ? this.focusClue : open[0];
+    const n = first !== undefined ? `${first + 1}. ` : '';
     $('#clue-bar').innerHTML = `<span class="clue-count">${t.clues} · ${open.length ? t.cluesLeft(open.length, g.pz.clues.length) : t.allCluesChecked}</span>
-      <span class="clue-preview">${first !== undefined ? this.segmentsHtml(t.clue(g.pz.clues[first])) : ''}</span>${icon('chevron', 'ui-icon chevron')}`;
+      <span class="clue-preview">${first !== undefined ? n + this.segmentsHtml(t.clue(g.pz.clues[first])) : ''}</span>${icon('chevron', 'ui-icon chevron')}`;
+    $('#clue-bar').setAttribute('aria-label', `${t.clues}: ${open.length ? t.cluesLeft(open.length, g.pz.clues.length) : t.allCluesChecked}`);
+  }
+
+  /** Swipe sideways on the clue bar: step through the clues, highlighting each one's references. */
+  cycleClue(dir: 1 | -1): void {
+    const g = this.game!;
+    const n = g.pz.clues.length;
+    const open = g.pz.clues.map((_, i) => i).filter((i) => !g.progress.struck.includes(i));
+    const pool = open.length ? open : g.pz.clues.map((_, i) => i);
+    const cur = this.focusClue >= 0 ? this.focusClue : -1;
+    let next: number;
+    if (cur < 0) next = dir > 0 ? pool[0] : pool[pool.length - 1];
+    else {
+      next = cur;
+      for (let k = 0; k < n; k++) {
+        next = (next + dir + n) % n;
+        if (pool.includes(next)) break;
+      }
+    }
+    this.focusClue = next;
+    play('tick');
+    this.renderPlayState();
+    const prev = document.querySelector<HTMLElement>('#clue-bar .clue-preview');
+    if (prev) { prev.style.setProperty('--dir', `${dir * 14}px`); prev.classList.add('slide'); }
+  }
+
+  setSheetOpen(open: boolean): void {
+    const sheet = $('#clue-sheet');
+    sheet.classList.toggle('open', open);
+    $('#sheet-backdrop').hidden = !open;
+    $('#clue-bar').setAttribute('aria-expanded', String(open));
+    if (!open) {
+      // The collapsed peek always shows clues.
+      sheet.querySelectorAll<HTMLElement>('.side-tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === 'clues'));
+      $('#sheet-clues').hidden = false;
+      $('#sheet-legend').hidden = true;
+    }
+    if (open) {
+      const target = this.focusClue >= 0 ? this.focusClue : 0;
+      sheet.querySelector(`#sheet-clues [data-clue="${target}"]`)?.scrollIntoView({ block: 'nearest' });
+    }
   }
 
   renderLegend(): void {
     const g = this.game!;
     const t = s();
     const present = new Set(g.pz.obj.filter(Boolean));
+    const thumbs = this.view?.thumbnails?.() ?? {};
     const html = OBJECT_TYPES.filter((o) => present.has(o)).map((o) => {
       const ok = OCCUPIABLE.has(o);
-      return `<li class="${ok ? 'ok' : 'no'}">${furnitureIcon(o, 'legend-icon')}<span>${esc(t.objects[o])}</span>
+      const thumb = thumbs[o];
+      const art = thumb ? `<img class="legend-icon" src="${thumb}" alt="">` : furnitureIcon(o, 'legend-icon');
+      return `<li class="${ok ? 'ok' : 'no'}">${art}<span>${esc(t.objects[o])}</span>
         <span class="legend-tag">${ok ? '✓ ' + esc(t.objectCanStand) : '✕ ' + esc(t.objectBlocks)}</span></li>`;
     }).join('');
     $('#side-legend').innerHTML = html;
@@ -512,14 +559,26 @@ export class App {
     const pz = g.pz;
     const id = `${isDailySeed(pz.seed) ? pz.seed : '#' + pz.seed} · ${pz.size}×${pz.size} ${t.difficulties[pz.difficulty]}`;
     const N = pz.size;
-    // Emoji floor plan: the victim's room in red, the rest neutral.
-    const vr = pz.room[pz.solution[N - 1]];
+    // Emoji floor plan (rooms in four colours, no solution spoilers).
+    const colours = ['🟫', '🟨', '🟩', '🟦', '🟪', '🟧'];
+    const roomColour: number[] = [];
+    for (let r = 0; r < pz.rooms.length; r++) {
+      const used = new Set<number>();
+      for (let c = 0; c < N * N; c++) {
+        if (pz.room[c] !== r) continue;
+        for (const d of [c - 1, c + 1, c - N, c + N]) {
+          if (d < 0 || d >= N * N || (Math.abs((d % N) - (c % N)) > 1)) continue;
+          if (pz.room[d] !== r && roomColour[pz.room[d]] !== undefined) used.add(roomColour[pz.room[d]]);
+        }
+      }
+      roomColour[r] = [0, 1, 2, 3, 4, 5].find((k) => !used.has(k)) ?? 0;
+    }
     let grid = '';
     for (let r = 0; r < N; r++) {
-      for (let k = 0; k < N; k++) grid += pz.room[r * N + k] === vr ? '🟥' : (pz.room[r * N + k] % 2 ? '🟫' : '🟨');
+      for (let k = 0; k < N; k++) grid += colours[roomColour[pz.room[r * N + k]]];
       grid += '\n';
     }
-    return `${t.shareText(id, fmtTime(g.progress.elapsed), g.progress.hints)}\n${grid}${this.shareUrl()}`;
+    return `${t.shareText(id, fmtTime(g.progress.elapsed), g.progress.hints)}\n${grid}`;
   }
 
   shareUrl(): string { return location.href; }
@@ -534,7 +593,8 @@ export class App {
       body: `<div class="result-hero">${pawnSvg(m.hue, m.accessory, m.initial, 'result-pawn')}</div>
         <p>${esc(t.solvedText(m.name, VICTIM_NAME, t.weapons[g.pz.weapon]))}</p>
         <dl class="result-stats"><div><dt>${esc(t.time)}</dt><dd>${fmtTime(g.progress.elapsed)}</dd></div>
-        <div><dt>${esc(t.hintsUsed)}</dt><dd>${g.progress.hints}</dd></div></dl>`,
+        <div><dt>${esc(t.hintsUsed)}</dt><dd>${g.progress.hints}</dd></div></dl>
+        <pre class="share-preview">${esc(this.shareSummary())}</pre>`,
       actions: [{ label: t.shareResult, value: 'share' }, { label: t.nextCase, primary: true, value: 'next' }],
     });
     if (choice === 'share') await this.share(true);
@@ -542,7 +602,7 @@ export class App {
   }
 
   async share(result = false): Promise<void> {
-    const text = result ? this.shareSummary() : `${s().story(VICTIM_NAME, s().weapons[this.game!.pz.weapon])}\n${this.shareUrl()}`;
+    const text = result ? `${this.shareSummary()}${this.shareUrl()}` : `${s().story(VICTIM_NAME, s().weapons[this.game!.pz.weapon])}\n${this.shareUrl()}`;
     try {
       if (navigator.share) await navigator.share({ title: 'Karodoku', text });
       else { await navigator.clipboard.writeText(text); toast(s().copied); }
@@ -685,12 +745,27 @@ export class App {
     $('#side-clues').addEventListener('click', onClueClick);
     $('#sheet-clues').addEventListener('click', onClueClick);
 
-    const sheet = $('#clue-sheet');
-    $('#clue-bar').onclick = () => {
-      const open = !sheet.classList.contains('open');
-      sheet.classList.toggle('open', open);
-      $('#clue-bar').setAttribute('aria-expanded', String(open));
-    };
+    // Clue bar: tap toggles the sheet, swipe up/down opens/closes, swipe sideways cycles clues.
+    const bar = $('#clue-bar');
+    let sx = 0, sy = 0, sid = -1;
+    bar.addEventListener('pointerdown', (e) => { sid = e.pointerId; sx = e.clientX; sy = e.clientY; });
+    bar.addEventListener('pointerup', (e) => {
+      if (e.pointerId !== sid) return;
+      sid = -1;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      const open = $('#clue-sheet').classList.contains('open');
+      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) this.cycleClue(dx < 0 ? 1 : -1);
+      else if (dy < -30) this.setSheetOpen(true);
+      else if (dy > 30) this.setSheetOpen(false);
+      else this.setSheetOpen(!open);
+    });
+    bar.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') { e.preventDefault(); this.cycleClue(1); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); this.cycleClue(-1); }
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.setSheetOpen(!$('#clue-sheet').classList.contains('open')); }
+    });
+    $('#sheet-backdrop').addEventListener('click', () => this.setSheetOpen(false));
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') this.setSheetOpen(false); });
     document.querySelectorAll<HTMLElement>('.side-tabs').forEach((tabs) => {
       tabs.addEventListener('click', (e) => {
         const b = (e.target as HTMLElement).closest<HTMLElement>('[data-tab]');

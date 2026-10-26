@@ -58,9 +58,11 @@ h1, h2, h3 { font-family: var(--serif); margin: 0; }
 .app {
   height: 100dvh;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  /* Phone: the board takes a square-ish block, the dock gets everything below it. */
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas: "header" "strip" "stage" "dock";
+  --board-h: clamp(250px, min(106vw, calc(100dvh - 300px - env(safe-area-inset-top) - env(safe-area-inset-bottom))), 680px);
   padding-top: env(safe-area-inset-top);
   max-width: 1280px;
   margin: 0 auto;
@@ -104,7 +106,7 @@ h1, h2, h3 { font-family: var(--serif); margin: 0; }
 /* ---------- stage / board ---------- */
 .stage { grid-area: stage; min-height: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
 .side-panel { display: none; }
-.board-area { position: relative; min-height: 0; display: grid; place-items: center; padding: 6px 4px 0; }
+.board-area { position: relative; min-height: 0; height: var(--board-h); display: grid; place-items: center; padding: 6px 4px 0; }
 .board-host { position: relative; width: 100%; height: 100%; min-height: 0; display: grid; place-items: center; }
 .board-host > canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 .room-banner {
@@ -148,27 +150,37 @@ h1, h2, h3 { font-family: var(--serif); margin: 0; }
 .dock {
   grid-area: dock;
   position: relative;
-  padding: 0 var(--gutter) calc(6px + env(safe-area-inset-bottom));
-  display: grid; gap: 6px;
+  min-height: 0;
+  padding: 6px var(--gutter) calc(4px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 6px;
 }
-
+.sheet-slot { position: relative; flex: 1; min-height: 52px; display: flex; }
 .clue-sheet {
-  position: relative;
+  flex: 1; min-height: 0; display: flex; flex-direction: column;
   background: var(--paper); border-radius: var(--radius); box-shadow: var(--shadow);
-  overflow: hidden;
+  overflow: hidden; touch-action: pan-y;
 }
-.sheet-grip { display: none; }
+.clue-sheet.open {
+  position: absolute; left: 0; right: 0; bottom: 0; height: min(72dvh, 620px); z-index: 20;
+  box-shadow: 0 -10px 40px rgb(0 0 0 / .35); animation: sheet-up .2s ease-out;
+}
+@keyframes sheet-up { from { transform: translateY(30px); opacity: .6; } }
+.sheet-backdrop { position: fixed; inset: 0; z-index: 15; background: rgb(15 8 4 / .45); }
+.sheet-backdrop[hidden] { display: none; }
+.sheet-grip { width: 38px; height: 4px; border-radius: 4px; background: var(--line); margin: 6px auto -4px; flex: none; }
 .clue-bar {
-  width: 100%; border: 0; background: none; cursor: pointer; text-align: left;
-  display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; column-gap: 8px;
-  padding: 7px 12px; min-height: 52px;
+  width: 100%; border: 0; background: none; cursor: pointer; text-align: left; flex: none;
+  display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto; column-gap: 8px;
+  padding: 6px 12px 7px; min-height: 48px; touch-action: none; user-select: none; -webkit-user-select: none;
 }
-.clue-count { font-size: .7rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--accent); }
-.clue-preview { grid-row: 2; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.clue-bar .chevron { grid-row: span 2; grid-column: 2; grid-row-start: 1; align-self: center; transition: transform .2s; color: var(--muted); }
+.clue-count { grid-column: 1 / 3; font-size: .68rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--accent); }
+.clue-preview { grid-column: 1 / 3; grid-row: 2; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clue-preview.slide { animation: slide-in .18s ease-out; }
+@keyframes slide-in { from { opacity: 0; transform: translateX(var(--dir, 12px)); } }
+.clue-bar .chevron { grid-column: 3; grid-row: 1 / 3; align-self: center; transition: transform .2s; color: var(--muted); }
 .clue-sheet.open .chevron { transform: rotate(180deg); }
-.sheet-body { display: none; max-height: 46dvh; overflow: auto; padding: 0 10px 10px; }
-.clue-sheet.open .sheet-body { display: block; }
+.sheet-body { flex: 1; min-height: 0; overflow: auto; padding: 0 10px 10px; overscroll-behavior: contain; }
+.clue-sheet:not(.open) .sheet-tabs { display: none; }
 
 .side-tabs { display: flex; gap: 4px; padding: 2px; background: var(--paper-2); border-radius: 10px; margin-bottom: 8px; }
 .side-tab { flex: 1; border: 0; background: none; padding: 7px; border-radius: 8px; font-weight: 700; font-size: .85rem; cursor: pointer; color: var(--muted); }
@@ -216,7 +228,7 @@ h1, h2, h3 { font-family: var(--serif); margin: 0; }
 .palette { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
 .palette::-webkit-scrollbar { display: none; }
 .chip {
-  flex: 1 1 0; min-width: 0; max-width: 76px; display: flex; flex-direction: column; align-items: center; gap: 1px;
+  flex: 1 1 0; min-width: 0; max-width: 76px; overflow: hidden; display: flex; flex-direction: column; align-items: center; gap: 1px;
   padding: 4px 2px 3px; border-radius: 12px; border: 2px solid transparent; background: var(--paper);
   box-shadow: var(--shadow); cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none;
   transition: transform .12s, opacity .12s, border-color .12s;
@@ -230,6 +242,9 @@ h1, h2, h3 { font-family: var(--serif); margin: 0; }
 .chip.placed:not(.active) { opacity: .5; }
 .chip.glow { box-shadow: 0 0 0 3px #ffd277, var(--shadow); }
 .chip.locked .chip-name::after { content: " 🔒"; font-size: .6rem; }
+.palette.crowded .chip:not(.active) .chip-name { display: none; }
+.palette.crowded .chip.active { flex-grow: 2.2; }
+.palette.crowded .chip { padding-bottom: 5px; }
 
 /* action bar */
 .actions { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
@@ -298,6 +313,7 @@ h1, h2, h3 { font-family: var(--serif); margin: 0; }
 /* ---------- desktop ---------- */
 @media (min-width: 900px) {
   .app {
+    --board-h: 100%;
     grid-template-columns: minmax(0, 1fr) 360px;
     grid-template-areas: "header header" "strip strip" "stage stage" "dock dock";
     grid-template-rows: auto auto minmax(0, 1fr) auto;
@@ -308,8 +324,9 @@ h1, h2, h3 { font-family: var(--serif); margin: 0; }
     display: flex; flex-direction: column; min-height: 0; margin: 8px 0;
     background: var(--paper); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px; overflow: auto;
   }
-  .clue-sheet { display: none; }
-  .dock { grid-template-columns: minmax(0, 1fr) 360px; column-gap: 16px; }
+  .sheet-slot { display: none; }
+  .palette.crowded .chip:not(.active) .chip-name { display: block; }
+  .dock { display: grid; grid-template-columns: minmax(0, 1fr) 360px; column-gap: 16px; }
   .palette { justify-content: center; }
   .actions { grid-column: 2; grid-row: 1; align-self: center; }
   .chip { flex: 0 0 64px; }
@@ -364,3 +381,9 @@ h1, h2, h3 { font-family: var(--serif); margin: 0; }
   20% { transform: translate(-5px, 3px); } 40% { transform: translate(4px, -3px); }
   60% { transform: translate(-3px, 2px); } 80% { transform: translate(2px, -1px); }
 }
+.share-preview {
+  margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--paper-2);
+  font: 600 .82rem/1.25 ui-monospace, "SF Mono", Menlo, monospace; white-space: pre; overflow: auto;
+}
+.dialog.result h2 { color: var(--accent); text-transform: uppercase; letter-spacing: .06em; }
+#live { top: 0; left: 0; }
