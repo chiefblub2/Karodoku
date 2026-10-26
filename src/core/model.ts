@@ -47,16 +47,20 @@ export interface Suspect {
   accessory: Accessory;
 }
 
-/** The full cast; a puzzle of size N uses N−1 of them plus the victim. */
+/**
+ * The full cast; a puzzle of size N uses N−1 of them plus the victim.
+ * Hues sit 45° apart around the wheel. Neighbours on the wheel (e.g. Bruno's red and Fiona's
+ * magenta, or Clara's green and Hedda's lime) also differ in accessory and initial.
+ */
 export const SUSPECTS: readonly Suspect[] = [
-  { id: 'ada', name: 'Ada', initial: 'A', hue: 200, accessory: 'bun' },
-  { id: 'bruno', name: 'Bruno', initial: 'B', hue: 352, accessory: 'tophat' },
+  { id: 'ada', name: 'Ada', initial: 'A', hue: 225, accessory: 'bun' },
+  { id: 'bruno', name: 'Bruno', initial: 'B', hue: 0, accessory: 'tophat' },
   { id: 'clara', name: 'Clara', initial: 'C', hue: 135, accessory: 'widehat' },
-  { id: 'dorian', name: 'Dorian', initial: 'D', hue: 32, accessory: 'glasses' },
-  { id: 'emil', name: 'Emil', initial: 'E', hue: 268, accessory: 'flatcap' },
-  { id: 'fiona', name: 'Fiona', initial: 'F', hue: 318, accessory: 'pearls' },
-  { id: 'gustav', name: 'Gustav', initial: 'G', hue: 178, accessory: 'toque' },
-  { id: 'hedda', name: 'Hedda', initial: 'H', hue: 52, accessory: 'feather' },
+  { id: 'dorian', name: 'Dorian', initial: 'D', hue: 45, accessory: 'glasses' },
+  { id: 'emil', name: 'Emil', initial: 'E', hue: 270, accessory: 'flatcap' },
+  { id: 'fiona', name: 'Fiona', initial: 'F', hue: 315, accessory: 'pearls' },
+  { id: 'gustav', name: 'Gustav', initial: 'G', hue: 180, accessory: 'toque' },
+  { id: 'hedda', name: 'Hedda', initial: 'H', hue: 90, accessory: 'feather' },
 ];
 export const VICTIM_NAME = 'Viktor';
 

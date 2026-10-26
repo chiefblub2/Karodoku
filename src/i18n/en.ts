@@ -31,6 +31,10 @@ export const en: Strings = {
     candlestick: 'a candlestick', rope: 'a rope', dagger: 'a dagger', poison: 'poison',
     revolver: 'a revolver', wrench: 'a wrench', vase: 'a vase', teapot: 'a teapot',
   },
+  weaponNames: {
+    candlestick: 'candlestick', rope: 'rope', dagger: 'dagger', poison: 'poison',
+    revolver: 'revolver', wrench: 'wrench', vase: 'vase', teapot: 'teapot',
+  },
   accessories: {
     bun: 'hair bun', tophat: 'top hat', widehat: 'wide-brim hat', glasses: 'round glasses',
     flatcap: 'flat cap', pearls: 'pearl necklace', toque: 'chef’s hat', feather: 'feather',
@@ -55,6 +59,7 @@ export const en: Strings = {
   mark: 'Note',
   markHint: 'Long-press a cell to toggle an ✕.',
   story: (v, w) => `${v} was murdered with ${w}. Who was alone in the room with him?`,
+  caseLine: (w) => `Weapon: ${w} · Who did it?`,
   generating: 'Preparing the case…',
   blocked: (o) => `Nobody can stand on ${OBJ_A[o]}.`,
   allCorrectSoFar: 'All correct so far!',

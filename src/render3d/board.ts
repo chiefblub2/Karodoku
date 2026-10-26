@@ -13,7 +13,12 @@ import type { Strings } from '../i18n';
 import type { Bag } from './bag';
 import { FLOOR_TEX_CELLS, baseTopCanvas, floorTexture, plaqueCanvas, woodTexture } from './textures';
 
+/** Frame width on the north and west sides, which carry the coordinates… */
 export const BASE_MARGIN = 0.62;
+/** …and on the south and east sides, which don't (more room for the board on phones). */
+export const BASE_MARGIN_FAR = 0.24;
+/** World x and z of the base's centre (the board's cells are centred on the origin). */
+export const BASE_CENTER = (BASE_MARGIN_FAR - BASE_MARGIN) / 2;
 export const WALL_H = 0.32;
 export const WALL_T = 0.13;
 
@@ -35,20 +40,20 @@ function roundedRect(w: number, h: number, r: number): Shape {
 
 function buildBase(N: number, bag: Bag): Group {
   const g = new Group();
-  const W = N + BASE_MARGIN * 2;
+  const W = N + BASE_MARGIN + BASE_MARGIN_FAR;
   const depth = 0.32, bevel = 0.08;
   const geo = bag.geo(new ExtrudeGeometry(roundedRect(W - bevel * 2, W - bevel * 2, 0.22), {
     depth, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 4, curveSegments: 8,
   }));
   geo.rotateX(-Math.PI / 2);
-  geo.translate(0, -depth - bevel - 0.012, 0);
+  geo.translate(BASE_CENTER, -depth - bevel - 0.012, BASE_CENTER);
   // Top cap UVs are shape coordinates; remap them to 0..1 over the box.
   const uv = geo.getAttribute('uv') as BufferAttribute;
   const pos = geo.getAttribute('position') as BufferAttribute;
   for (let i = 0; i < uv.count; i++) {
-    if (pos.getY(i) > -0.02) uv.setXY(i, pos.getX(i) / W + 0.5, -pos.getZ(i) / W + 0.5);
+    if (pos.getY(i) > -0.02) uv.setXY(i, (pos.getX(i) - BASE_CENTER) / W + 0.5, -(pos.getZ(i) - BASE_CENTER) / W + 0.5);
   }
-  const top = new CanvasTexture(baseTopCanvas(N, BASE_MARGIN));
+  const top = new CanvasTexture(baseTopCanvas(N, BASE_MARGIN, BASE_MARGIN_FAR));
   top.colorSpace = SRGBColorSpace;
   top.anisotropy = 8;
   const topMat = bag.mat(new MeshStandardMaterial({ map: bag.tex(top), roughness: 0.55, metalness: 0.05 }));
@@ -201,12 +206,12 @@ function buildPlaques(pz: Puzzle, t: Strings, bag: Bag): Group {
   return g;
 }
 
-export interface BoardParts { root: Group; floors: Group; plaques: Group; halfExtent: number }
+export interface BoardParts { root: Group; floors: Group; plaques: Group; halfExtent: number; center: number }
 
 export function buildBoard(pz: Puzzle, t: Strings, bag: Bag): BoardParts {
   const root = new Group();
   const floors = buildFloors(pz, bag);
   const plaques = buildPlaques(pz, t, bag);
   root.add(buildBase(pz.size, bag), floors, buildWalls(pz, bag), plaques);
-  return { root, floors, plaques, halfExtent: pz.size / 2 + BASE_MARGIN };
+  return { root, floors, plaques, halfExtent: (pz.size + BASE_MARGIN + BASE_MARGIN_FAR) / 2, center: BASE_CENTER };
 }

@@ -17,7 +17,8 @@ export const FLOOR_2D: Record<RoomType, [string, string]> = {
   guest: ['#d8b9a0', '#c4a287'], dining: ['#6b4026', '#5a3420'], billiard: ['#4b3222', '#2e5a3c'],
 };
 
-const PAD = 0.55; // board margin in cells (coordinates live here)
+const PAD = 0.55; // board margin in cells on the top and left (coordinates live here)
+const PAD_FAR = 0.2; // …and on the bottom and right
 
 export class Board2D implements BoardView {
   readonly kind = '2d' as const;
@@ -40,7 +41,7 @@ export class Board2D implements BoardView {
   setPuzzle(pz: Puzzle, cast: CastEntry[]): void {
     this.pz = pz;
     this.cast = cast;
-    const N = pz.size, W = N + PAD * 2;
+    const N = pz.size, W = N + PAD + PAD_FAR;
     const t = s();
     let floor = '', walls = '', furn = '', coords = '';
     for (let c = 0; c < N * N; c++) {
@@ -119,10 +120,20 @@ export class Board2D implements BoardView {
 
   private pick(x: number, y: number): number {
     const rect = this.svg.getBoundingClientRect();
-    const N = this.pz.size, W = N + PAD * 2;
+    const N = this.pz.size, W = N + PAD + PAD_FAR;
     const k = Math.floor(((x - rect.left) / rect.width) * W - PAD);
     const r = Math.floor(((y - rect.top) / rect.height) * W - PAD);
     return k >= 0 && r >= 0 && k < N && r < N ? r * N + k : -1;
+  }
+
+  anchor(cell: number): { x: number; y: number } | null {
+    if (!this.svg) return null;
+    const rect = this.svg.getBoundingClientRect();
+    const N = this.pz.size, W = N + PAD + PAD_FAR;
+    return {
+      x: rect.left + ((colOf(cell, N) + 0.5 + PAD) / W) * rect.width,
+      y: rect.top + ((rowOf(cell, N) + PAD) / W) * rect.height,
+    };
   }
 
   update(vm: ViewModel): void {

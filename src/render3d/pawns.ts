@@ -3,13 +3,13 @@
 import {
   CanvasTexture, CircleGeometry, Color, ConeGeometry, CylinderGeometry, DoubleSide, Group, LatheGeometry, Mesh,
   MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SphereGeometry, SRGBColorSpace, TorusGeometry, Vector2,
-  AdditiveBlending, BoxGeometry, Object3D,
+  AdditiveBlending, Box3, BoxGeometry, Object3D,
 } from 'three';
 import type { Material } from 'three';
 import type { Accessory } from '../core/model';
 import type { CastEntry } from '../ui/view';
 import type { Bag } from './bag';
-import { badgeCanvas, chalkCanvas, evidenceCanvas, ringCanvas } from './textures';
+import { badgeCanvas, chalkCanvas, evidenceCanvas, initialCapCanvas, ringCanvas } from './textures';
 
 export const PAWN_HEIGHT = 0.62;
 export const PAWN_SCALE = 1.1;
@@ -58,6 +58,15 @@ export class PawnFactory {
     badge.rotation.x = -0.42;
     inner.add(badge);
     if (c.accessory) inner.add(this.accessory(c.accessory));
+    // A big initial disc floating just above the pawn's highest point, readable from the top-down camera.
+    const top = new Box3().setFromObject(inner).max.y;
+    const capTex = new CanvasTexture(initialCapCanvas(c.initial, c.hue));
+    capTex.colorSpace = SRGBColorSpace;
+    capTex.anisotropy = 4;
+    const cap = mesh(bag.geo(new CircleGeometry(0.135, 32)), bag.mat(new MeshBasicMaterial({ map: bag.tex(capTex) })), 0, top + 0.03, 0.02, false);
+    cap.rotation.x = -Math.PI / 2;
+    cap.name = 'initial';
+    inner.add(cap);
     return g;
   }
 

@@ -43,7 +43,7 @@ const fs = require('fs');
   await b.close();
 })();
 
-/** Phone interaction states: a finger resting on a cell, and a clue picked from the full sheet. */
+/** Phone interaction states: a finger resting on a cell, a name tag, and a clue picked from the full sheet. */
 async function flows(b, base, out, tag) {
   for (const scheme of ['light', 'dark']) {
     const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: scheme, locale: 'de-DE', reducedMotion: 'reduce' });
@@ -71,6 +71,10 @@ async function flows(b, base, out, tag) {
     await pg.waitForTimeout(60);
     await touch('pointercancel');
     await shot;
+    // Placing someone shows their name tag for a moment.
+    await pg.evaluate(() => { const g = window.__app.game; g.place(2, g.pz.solution[2]); });
+    await pg.waitForTimeout(200);
+    await pg.screenshot({ path: name('name-tag'), type: 'jpeg', quality: 88 });
     await pg.click('#clue-bar');
     await pg.waitForTimeout(300);
     await pg.click('#sheet-clues [data-focus="5"]');
