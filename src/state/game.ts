@@ -100,21 +100,22 @@ export class GameStore {
     this.wrong.clear();
   }
 
-  /** Place person p on a cell (or take them off if already there). */
+  /** Place person p on a free cell; an occupied cell instead loses whoever stands there. */
   place(p: number, cell: number): void {
     const pr = this.progress;
     if (pr.solved) return;
     if (isBlocking(this.pz.obj[cell])) { this.emit({ type: 'blocked', cell }); return; }
     const here = this.personAt(cell);
-    if (this.isLocked(p) || (here >= 0 && this.isLocked(here))) return;
-    this.record();
-    if (here === p) {
-      pr.pos[p] = -1;
-      this.emit({ type: 'removed', p, cell });
+    if (here >= 0) {
+      if (this.isLocked(here)) return;
+      this.record();
+      pr.pos[here] = -1;
+      this.emit({ type: 'removed', p: here, cell });
       return;
     }
+    if (this.isLocked(p)) return;
+    this.record();
     const from = pr.pos[p];
-    if (here >= 0) pr.pos[here] = -1;
     pr.pos[p] = cell;
     pr.marks = pr.marks.filter((m) => m !== cell);
     this.emit({ type: 'placed', p, cell, from });

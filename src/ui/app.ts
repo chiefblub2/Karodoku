@@ -260,6 +260,9 @@ export class App {
       case 'removed':
         this.view?.fx({ type: 'removed', p: e.p, cell: e.cell });
         play('lift');
+        // Select whoever was lifted so the next tap puts them somewhere else.
+        this.tool = e.p;
+        this.announce(t.removed(this.cast[e.p].name));
         break;
       case 'marked':
         this.view?.fx({ type: 'marked', cell: e.cell, on: e.on });
