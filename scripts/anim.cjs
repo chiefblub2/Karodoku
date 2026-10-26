@@ -1,0 +1,30 @@
+// Capture animation frames: node scripts/anim.cjs <url> <outDir>
+const { chromium } = require('playwright');
+(async () => {
+  const [url, out] = process.argv.slice(2);
+  const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true, locale: 'de-DE' });
+  await ctx.addInitScript(() => localStorage.setItem('karodoku2:settings', JSON.stringify({ schemaVersion: 2, size: 6, difficulty: 'medium', renderer: '3d', lang: 'de', sound: false, haptics: true, seenRules: true })));
+  const pg = await ctx.newPage();
+  const errs = [];
+  pg.on('pageerror', (e) => errs.push(e.message));
+  await pg.goto(url);
+  await pg.waitForSelector('canvas.board3d');
+  const shot = (n) => pg.screenshot({ path: `${out}/anim-${n}.jpg`, type: 'jpeg', quality: 80, clip: { x: 0, y: 90, width: 390, height: 560 } });
+  await pg.waitForTimeout(250); await shot('intro-a');
+  await pg.waitForTimeout(500); await shot('intro-b');
+  await pg.waitForTimeout(1500);
+  await pg.evaluate(() => { const a = window.__app; a.game.place(0, a.game.pz.solution[0]); });
+  await pg.waitForTimeout(170); await shot('drop-air');
+  await pg.waitForTimeout(150); await shot('drop-land');
+  await pg.evaluate(() => { const a = window.__app; const g = a.game; for (let p = 1; p < g.size; p++) g.place(p, g.pz.solution[p]); });
+  await pg.waitForTimeout(900);
+  await pg.evaluate(() => window.__app.game.accuse(window.__app.game.pz.murderer));
+  await pg.evaluate(() => document.querySelector('dialog')?.close());
+  await pg.waitForTimeout(700); await shot('solved-a');
+  await pg.waitForTimeout(1100); await shot('solved-b');
+  await pg.waitForTimeout(500); await shot('solved-c');
+  const fps = await pg.evaluate(() => window.__app.view.measuredFps?.());
+  console.log('errors', errs, 'fps(swiftshader)', fps);
+  await b.close();
+})();

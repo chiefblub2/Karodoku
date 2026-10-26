@@ -40,6 +40,7 @@ export type Fx =
   | { type: 'placed'; p: number; cell: number; from: number }
   | { type: 'removed'; p: number; cell: number }
   | { type: 'blocked'; cell: number }
+  | { type: 'marked'; cell: number; on: boolean }
   | { type: 'wrong'; people: number[] }
   | { type: 'solved'; murderer: number }
   | { type: 'intro'; animate: boolean };

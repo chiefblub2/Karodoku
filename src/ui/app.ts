@@ -222,7 +222,10 @@ export class App {
         this.view?.fx({ type: 'removed', p: e.p, cell: e.cell });
         play('lift');
         break;
-      case 'marked': play('mark'); break;
+      case 'marked':
+        this.view?.fx({ type: 'marked', cell: e.cell, on: e.on });
+        play('mark');
+        break;
       case 'blocked':
         this.view?.fx({ type: 'blocked', cell: e.cell });
         toast(t.blocked(g.pz.obj[e.cell] as ObjectType));
@@ -246,12 +249,13 @@ export class App {
         if (e.correct) window.setTimeout(() => void this.accuse(), reducedMotion() ? 0 : 450);
         else toast(t.notComplete);
         break;
-      case 'solved':
+      case 'solved': {
         this.view?.fx({ type: 'solved', murderer: g.pz.murderer });
-        play('stamp');
-        vibrate([40, 60, 120]);
-        window.setTimeout(() => void this.showResult(), reducedMotion() ? 0 : 1800);
+        const calm = reducedMotion();
+        window.setTimeout(() => this.slamStamp(), calm ? 0 : 1500);
+        window.setTimeout(() => void this.showResult(), calm ? 600 : 3000);
         break;
+      }
       case 'reset':
       case 'history':
       case 'struck':
@@ -442,6 +446,27 @@ export class App {
   }
 
   announce(msg: string): void { $('#live').textContent = msg; }
+
+  /** "FALL GELÖST" rubber stamp slamming onto the board. */
+  slamStamp(): void {
+    const area = $('.board-area');
+    area.querySelector('.case-stamp')?.remove();
+    const el = document.createElement('div');
+    el.className = 'case-stamp';
+    el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = `<span>${esc(s().caseClosed)}</span>`;
+    area.appendChild(el);
+    this.announce(s().caseClosed);
+    play('stamp');
+    vibrate([40, 60, 120]);
+    if (!reducedMotion()) {
+      area.classList.remove('shake');
+      void area.offsetWidth;
+      area.classList.add('shake');
+    }
+    window.setTimeout(() => el.classList.add('fade'), 2600);
+    window.setTimeout(() => el.remove(), 3400);
+  }
 
   // ---------- dialogs ----------
 
@@ -646,7 +671,7 @@ export class App {
       const strike = el.closest<HTMLElement>('[data-strike]');
       if (strike && this.game) {
         this.game.toggleStrike(Number(strike.dataset.strike));
-        play('stamp');
+        play('mark');
         vibrate(12);
         return;
       }

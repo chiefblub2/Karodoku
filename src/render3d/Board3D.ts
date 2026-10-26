@@ -19,6 +19,7 @@ import { CameraRig } from './camera';
 import { buildFurniture, surfaceOf } from './furniture';
 import type { FurnitureParts } from './furniture';
 import { Loop, ease, tween } from './loop';
+import { burst } from './particles';
 import { PawnFactory, ghostOf, lockDecor, ringDecal } from './pawns';
 import { markCanvas, setMaxAnisotropy, softSquareCanvas } from './textures';
 
@@ -60,6 +61,7 @@ export class Board3D implements BoardView {
   private flickerTimer = 0;
   private flickerUntil = 0;
   private animatingPawns = new Set<number>();
+  private markPop = new Map<number, number>();
 
   // Gestures
   private touches = new Map<number, { x: number; y: number }>();
@@ -242,7 +244,8 @@ export class Board3D implements BoardView {
     n = 0;
     for (const c of vm.marks) {
       const { x, z } = cellCenter(c, N);
-      this.marks.setMatrixAt(n++, mat.compose(new Vector3(x, surfaceOf(pz.obj[c]) + 0.012, z), new Quaternion(), new Vector3(0.62, 1, 0.62)));
+      const sc = 0.62 * (this.markPop.get(c) ?? 1);
+      this.marks.setMatrixAt(n++, mat.compose(new Vector3(x, surfaceOf(pz.obj[c]) + 0.012, z), new Quaternion(), new Vector3(sc, 1, sc)));
     }
     this.marks.count = n;
     this.marks.instanceMatrix.needsUpdate = true;
@@ -332,25 +335,75 @@ export class Board3D implements BoardView {
         const st = this.pawns.get(f.p);
         if (!st) break;
         st.group.visible = true;
+        const N = this.pz.size;
+        const to = cellCenter(f.cell, N), toY = surfaceOf(this.pz.obj[f.cell]);
         this.placeAt(st, f.cell);
         if (reduce) break;
         this.animatingPawns.add(f.p);
-        const inner = st.inner;
-        void tween(this.loop, 0.42, (k) => {
-          // Hop in from above with squash on landing.
-          const h = k < 0.7 ? (1 - k / 0.7) * 0.6 : 0;
-          const squash = k >= 0.7 ? Math.sin(((k - 0.7) / 0.3) * Math.PI) * 0.22 : 0;
-          inner.position.y = h;
-          inner.scale.set(1 + squash * 0.6, 1 - squash, 1 + squash * 0.6);
+        const inner = st.inner, group = st.group;
+        const victim = this.cast[f.p].victim;
+        // Moving from another cell: arc across; new placement: drop in from above.
+        const from = f.from >= 0 ? { ...cellCenter(f.from, N), y: surfaceOf(this.pz.obj[f.from]) } : null;
+        const dur = from ? 0.46 : 0.4;
+        let dusted = false;
+        void tween(this.loop, dur, (k) => {
+          const air = 0.72; // fraction of the time spent in the air
+          if (k < air) {
+            const a = k / air;
+            if (from) {
+              group.position.set(from.x + (to.x - from.x) * a, from.y + (toY - from.y) * a, from.z + (to.z - from.z) * a);
+              inner.position.y = Math.sin(a * Math.PI) * 0.55;
+            } else {
+              inner.position.y = (1 - a * a) * 0.75;
+            }
+            // Stretch while flying.
+            const st2 = victim ? 0 : 0.14 * Math.sin(a * Math.PI * 0.9);
+            inner.scale.set(1 - st2 * 0.5, 1 + st2, 1 - st2 * 0.5);
+          } else {
+            if (!dusted) {
+              dusted = true;
+              group.position.set(to.x, toY, to.z);
+              burst(this.world, this.loop, to.x, toY, to.z, victim ? { color: '#ffffff', count: 10 } : {});
+            }
+            const b = (k - air) / (1 - air);
+            const squash = victim ? 0 : Math.sin(b * Math.PI) * 0.24 * (1 - b * 0.3);
+            inner.position.y = 0;
+            inner.scale.set(1 + squash * 0.55, 1 - squash, 1 + squash * 0.55);
+          }
         }, ease.linear).done.then(() => {
           inner.position.y = 0;
           inner.scale.set(1, 1, 1);
           this.animatingPawns.delete(f.p);
+          if (this.vm && this.vm.pos[f.p] >= 0) this.placeAt(st, this.vm.pos[f.p]);
           this.loop.invalidate();
         });
         break;
       }
-      case 'removed': break;
+      case 'removed': {
+        const st = this.pawns.get(f.p);
+        if (!st || reduce) break;
+        st.group.visible = true;
+        this.animatingPawns.add(f.p);
+        const inner = st.inner;
+        void tween(this.loop, 0.28, (k) => {
+          inner.position.y = Math.sin(k * Math.PI * 0.5) * 0.45;
+          inner.scale.setScalar(1 - k * 0.85);
+        }, ease.inQuad).done.then(() => {
+          inner.position.y = 0;
+          inner.scale.setScalar(1);
+          this.animatingPawns.delete(f.p);
+          st.group.visible = !!this.vm && this.vm.pos[f.p] >= 0;
+          this.loop.invalidate();
+        });
+        break;
+      }
+      case 'marked': {
+        if (!f.on || reduce) break;
+        this.markPop.set(f.cell, 0);
+        void tween(this.loop, 0.26, (k) => { this.markPop.set(f.cell, k); if (this.vm) this.update(this.vm); }, ease.outBack)
+          .done.then(() => this.markPop.delete(f.cell));
+        break;
+      }
       case 'blocked': this.wiggle(f.cell); break;
       case 'wrong': {
         for (const p of f.people) {
@@ -404,6 +457,16 @@ export class Board3D implements BoardView {
     tube.geometry.setDrawRange(0, reduce ? Infinity : 0);
     const total = tube.geometry.index ? tube.geometry.index.count : 0;
     this.rig.yaw = -0.45;
+    if (!reduce) {
+      // The murderer gives a guilty little jump once the camera has settled.
+      window.setTimeout(() => {
+        void tween(this.loop, 0.5, (k) => {
+          m.inner.position.y = Math.sin(k * Math.PI) * 0.3;
+          m.inner.rotation.y = k * Math.PI * 2;
+        }, ease.outCubic).done.then(() => { m.inner.position.y = 0; m.inner.rotation.y = 0; this.loop.invalidate(); });
+        burst(this.world, this.loop, mp.x, mp.y + 0.1, mp.z, { color: '#ffd277', glow: true, count: 18, speed: 0.8, rise: 0.6, duration: 0.8 });
+      }, 1300);
+    }
     void tween(this.loop, reduce ? 0 : 1.4, (k) => {
       this.rig.blend = k;
       this.rig.update();
