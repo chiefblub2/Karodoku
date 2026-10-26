@@ -43,6 +43,7 @@ export interface Strings {
   errors(n: number): string;
   notComplete: string;
   hintUsed(name: string): string;
+  removed(name: string): string;
   noHint: string;
   copied: string;
   resetTitle: string;
