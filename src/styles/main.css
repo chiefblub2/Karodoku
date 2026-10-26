@@ -134,7 +134,12 @@ h1, h2, h3 { font-family: var(--serif); margin: 0; }
 .board2d .coord { font: 700 .26px var(--serif); fill: #f0e3c8; text-anchor: middle; dominant-baseline: central; }
 .board2d .plaque { font: 700 .13px system-ui, sans-serif; fill: #2a1d16; opacity: .75; text-anchor: middle; pointer-events: none; }
 .board2d .plaque-hit { fill: transparent; }
-.board2d .shade rect { fill: #1a0f08; opacity: .22; }
+.board2d .shade { pointer-events: none; }
+.board2d .shade-grey { fill: #808080; mix-blend-mode: saturation; opacity: .55; }
+.board2d .shade-dark { fill: url(#shade-hatch); }
+.board2d .shade-fill { fill: #0d0805; fill-opacity: .36; }
+.board2d .shade-line { stroke: #000; stroke-opacity: .28; stroke-width: .06; }
+.board2d .room-outline { fill: none; stroke: #ffd277; stroke-width: .09; stroke-linecap: square; filter: drop-shadow(0 0 .06px #ffd277); }
 .board2d .room-glow { fill: #ffd277; opacity: .35; animation: glow 1.2s ease-in-out infinite alternate; }
 .board2d .sel { fill: none; stroke: #ffd277; stroke-width: .05; }
 .board2d .mark { stroke: #c0281c; stroke-width: .11; stroke-linecap: round; }
@@ -164,7 +169,7 @@ h1, h2, h3 { font-family: var(--serif); margin: 0; }
   overflow: hidden; touch-action: pan-y;
 }
 .clue-sheet.open {
-  position: absolute; left: 0; right: 0; bottom: 0; height: min(72dvh, 620px); z-index: 20;
+  position: absolute; left: 0; right: 0; bottom: 0; height: min(60dvh, 620px); z-index: 20;
   box-shadow: 0 -10px 40px rgb(0 0 0 / .35); animation: sheet-up .2s ease-out;
 }
 @keyframes sheet-up { from { transform: translateY(30px); opacity: .6; } }
@@ -178,6 +183,9 @@ h1, h2, h3 { font-family: var(--serif); margin: 0; }
 }
 .clue-count { grid-column: 1 / 3; font-size: .68rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--accent); }
 .clue-preview { grid-column: 1 / 3; grid-row: 2; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clue-preview[hidden] { display: none; }
+.clue-bar:has(.clue-preview[hidden]) { align-content: center; }
+.clue-bar:has(.clue-preview[hidden]) .chevron { grid-row: 1; }
 .clue-preview.slide { animation: slide-in .18s ease-out; }
 @keyframes slide-in { from { opacity: 0; transform: translateX(var(--dir, 12px)); } }
 .clue-bar .chevron { grid-column: 3; grid-row: 1 / 3; align-self: center; transition: transform .2s; color: var(--muted); }
@@ -191,6 +199,7 @@ h1, h2, h3 { font-family: var(--serif); margin: 0; }
 
 .clue-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; counter-reset: clue; }
 .clue {
+  scroll-margin: 8px;
   position: relative; display: grid; grid-template-columns: 1fr 40px; align-items: center;
   background: var(--paper-2); border-radius: 10px; counter-increment: clue;
 }

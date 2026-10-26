@@ -505,6 +505,22 @@ export function softSquareCanvas(): HTMLCanvasElement {
   });
 }
 
+/** Ruled-out cell veil: dark grey wash with diagonal hatching, so it reads on light and dark floors alike. */
+export function hatchCanvas(): HTMLCanvasElement {
+  return cached('hatch', () => {
+    const [c, ctx] = canvas(128);
+    ctx.fillStyle = 'rgba(20,19,26,0.4)';
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.strokeStyle = 'rgba(0,0,0,0.42)';
+    ctx.lineWidth = 9;
+    ctx.beginPath();
+    // Four stripes per cell; drawn past the edges so they tile seamlessly cell to cell.
+    for (let k = -128; k <= 256; k += 32) { ctx.moveTo(k, 128); ctx.lineTo(k + 128, 0); }
+    ctx.stroke();
+    return c;
+  });
+}
+
 /** Chalk body outline (white on transparent). */
 export function chalkCanvas(): HTMLCanvasElement {
   return cached('chalk', () => {
