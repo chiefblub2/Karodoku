@@ -193,9 +193,7 @@ export class GameStore {
   }
 
   reset(): void {
-    const keepTime = this.progress.elapsed;
-    this.progress = { ...this.progress, pos: new Array(this.size).fill(-1), marks: [], struck: [], locked: [], hints: 0, solved: false };
-    this.progress.elapsed = keepTime;
+    this.progress = { ...this.progress, pos: new Array(this.size).fill(-1), marks: [], struck: [], locked: [], hints: 0, elapsed: 0, solved: false };
     this.undoStack = [];
     this.redoStack = [];
     this.wrong.clear();
