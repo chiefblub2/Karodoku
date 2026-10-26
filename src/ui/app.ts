@@ -32,6 +32,8 @@ export class App {
   hoverCell = -1;
   focusClue = -1;
   private timer = 0;
+  private perfAsked = false;
+  private webglFailed = false;
   private loadToken = 0;
   private unsub: (() => void) | null = null;
 
@@ -115,22 +117,46 @@ export class App {
     this.renderAll();
     this.startTimer();
     if (this.game.progress.solved) this.refreshView();
+    this.watchPerformance();
+  }
+
+  /** Offer the 2D view once if the 3D view animates slowly during the first seconds. */
+  watchPerformance(): void {
+    if (this.perfAsked || this.view?.kind !== '3d') return;
+    window.setTimeout(async () => {
+      const fps = this.view?.measuredFps?.();
+      if (this.perfAsked || fps == null || fps >= 30 || this.view?.kind !== '3d') return;
+      this.perfAsked = true;
+      const t = s();
+      const v = await showDialog({
+        title: t.lowFps, body: '',
+        actions: [{ label: t.keep3d, value: '' }, { label: t.switchTo2d, primary: true, value: '2d' }],
+      });
+      if (v === '2d') await this.switchRenderer('2d');
+    }, 3500);
   }
 
   async ensureView(): Promise<void> {
-    const want = this.settings.renderer;
+    const want = this.webglFailed ? '2d' : this.settings.renderer;
     if (this.view && this.view.kind === want) return;
     this.view?.dispose();
     const host = $('#board-host');
-    const v = await createView(want);
-    if (v.kind !== want) toast(s().noWebgl);
+    const v = await createView(this.webglFailed ? '2d' : want);
+    if (v.kind !== want && !this.webglFailed) { this.webglFailed = true; toast(s().noWebgl); }
     v.mount(host);
     v.onIntent = (i) => this.onIntent(i);
+    host.querySelector('canvas')?.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      this.webglFailed = true;
+      toast(s().noWebgl);
+      void this.switchRenderer('2d');
+    }, { once: true });
     this.view = v;
     document.body.dataset.renderer = v.kind;
   }
 
   async switchRenderer(kind: '2d' | '3d'): Promise<void> {
+    if (kind === '3d') this.webglFailed = false;
     this.settings.renderer = kind;
     this.saveSettings();
     if (!this.pz) return;
