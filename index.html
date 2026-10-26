@@ -3,93 +3,72 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="description" content="Karodoku – generierte Mordrätsel. Logikrätsel für Handy und Desktop.">
+  <meta name="description" content="Karodoku – generierte Mordrätsel in einem hölzernen 3D-Puppenhaus. Logikrätsel für Handy und Desktop.">
   <meta name="theme-color" content="#2a1d16">
   <title>Karodoku – Mordrätsel</title>
-  <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/style.css">
-  <script type="module" src="js/app.js"></script>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <span class="logo" aria-hidden="true">🔍</span>
-      <div>
-        <h1>Karodoku</h1>
-        <p class="tagline" data-i18n="tagline"></p>
+  <div id="app" class="app">
+    <header class="topbar">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#a3271c"/><g fill="#f4ead6"><rect x="12" y="12" width="12" height="12" rx="2"/><rect x="26" y="12" width="12" height="12" rx="2" opacity=".55"/><rect x="40" y="12" width="12" height="12" rx="2"/><rect x="12" y="26" width="12" height="12" rx="2" opacity=".55"/><rect x="40" y="26" width="12" height="12" rx="2" opacity=".55"/><rect x="12" y="40" width="12" height="12" rx="2"/><rect x="26" y="40" width="12" height="12" rx="2" opacity=".55"/><rect x="40" y="40" width="12" height="12" rx="2"/></g><circle cx="32" cy="32" r="5" fill="#2a1d16"/></svg>
+        <div class="brand-text"><h1>Karodoku</h1><p class="tagline" data-t="appTagline"></p></div>
       </div>
-    </div>
-    <div class="top-actions">
-      <button id="btn-lang" class="icon-btn" type="button" aria-label="Language">EN</button>
-      <button id="btn-rules" class="icon-btn" type="button" aria-label="Rules">?</button>
-    </div>
-  </header>
+      <div class="top-actions">
+        <button id="btn-case" class="pill" type="button"></button>
+        <button id="btn-rules" class="icon-btn" type="button"></button>
+      </div>
+    </header>
 
-  <main class="layout">
-    <section class="controls" aria-label="Puzzle settings">
-      <label class="field"><span data-i18n="size"></span>
-        <select id="sel-size"></select>
-      </label>
-      <label class="field"><span data-i18n="difficulty"></span>
-        <select id="sel-diff"></select>
-      </label>
-      <button id="btn-new" class="btn primary" type="button" data-i18n="newPuzzle"></button>
-      <button id="btn-daily" class="btn" type="button" data-i18n="daily"></button>
-    </section>
+    <button id="case-strip" class="case-strip" type="button" aria-expanded="false">
+      <span id="case-story" class="case-story"></span>
+      <span id="case-timer" class="case-timer"></span>
+    </button>
 
-    <div class="play">
-      <section class="case">
-        <p id="story"></p>
-        <div class="meta">
-          <span id="timer">0:00</span>
-          <span id="puzzle-id"></span>
+    <main class="stage">
+      <section class="board-area">
+        <div id="board-host" class="board-host"></div>
+        <div id="room-banner" class="room-banner" aria-hidden="true"></div>
+        <div id="a11y-grid" class="sr-only" role="grid"></div>
+        <div id="loading" class="loading" hidden><div class="spinner"></div><span id="loading-text"></span></div>
+      </section>
+
+      <aside class="side-panel">
+        <div class="side-tabs" role="tablist">
+          <button class="side-tab active" role="tab" data-tab="clues" type="button"></button>
+          <button class="side-tab" role="tab" data-tab="legend" type="button"></button>
         </div>
-      </section>
+        <ol id="side-clues" class="clue-list"></ol>
+        <ul id="side-legend" class="legend" hidden></ul>
+      </aside>
+    </main>
 
-      <section class="board-wrap">
-        <div id="board" class="board" role="grid"></div>
-      </section>
+    <section class="dock">
+      <div class="sheet-slot">
+      <div id="clue-sheet" class="clue-sheet">
+        <div class="sheet-grip" aria-hidden="true"></div>
+        <button id="clue-bar" class="clue-bar" type="button" aria-expanded="false"></button>
+        <div class="sheet-body">
+          <div class="side-tabs sheet-tabs" role="tablist">
+            <button class="side-tab active" role="tab" data-tab="clues" type="button"></button>
+            <button class="side-tab" role="tab" data-tab="legend" type="button"></button>
+          </div>
+          <ol id="sheet-clues" class="clue-list"></ol>
+          <ul id="sheet-legend" class="legend" hidden></ul>
+        </div>
+      </div>
+      </div>
+      <div id="palette" class="palette" role="toolbar"></div>
+      <div id="actions" class="actions" role="toolbar"></div>
+    </section>
+  </div>
 
-      <section id="palette" class="palette" aria-label="People"></section>
-
-      <section class="actions">
-        <button id="btn-undo" class="btn" type="button" data-i18n="undo"></button>
-        <button id="btn-check" class="btn" type="button" data-i18n="check"></button>
-        <button id="btn-hint" class="btn" type="button" data-i18n="hint"></button>
-        <button id="btn-reset" class="btn" type="button" data-i18n="reset"></button>
-        <button id="btn-share" class="btn" type="button" data-i18n="share"></button>
-      </section>
-    </div>
-
-    <aside class="side">
-      <section class="card">
-        <h2 data-i18n="clues"></h2>
-        <ol id="clues" class="clues"></ol>
-      </section>
-      <section class="card">
-        <h2 data-i18n="furniture"></h2>
-        <ul id="legend" class="legend"></ul>
-      </section>
-    </aside>
-  </main>
-
-  <dialog id="dlg-rules" class="dialog">
-    <h2 data-i18n="rulesTitle"></h2>
-    <ul id="rules-list" class="rules"></ul>
-    <p id="howto" class="howto"></p>
-    <form method="dialog"><button class="btn primary" data-i18n="close"></button></form>
-  </dialog>
-
-  <dialog id="dlg-accuse" class="dialog">
-    <h2 id="accuse-title"></h2>
-    <p id="accuse-text"></p>
-    <div id="accuse-list" class="accuse-list"></div>
-    <div class="dialog-actions" id="accuse-actions"></div>
-  </dialog>
-
+  <div id="sheet-backdrop" class="sheet-backdrop" hidden></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <div id="loading" class="loading" hidden><span data-i18n="generating"></span></div>
-
+  <div id="live" class="sr-only" aria-live="polite"></div>
   <noscript>Karodoku benötigt JavaScript.</noscript>
+  <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
