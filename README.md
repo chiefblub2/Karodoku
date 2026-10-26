@@ -38,5 +38,4 @@ node tests/generate.test.mjs  # Generator prüfen
 
 ## Deployment
 
-`.github/workflows/pages.yml` testet den Generator und veröffentlicht die Seite bei jedem Push auf `main`.
-Einmalig in den Repo-Einstellungen unter **Settings → Pages → Source** „GitHub Actions" auswählen.
+GitHub Pages veröffentlicht die Seite direkt aus dem Branch `main` (Root-Verzeichnis), kein Build nötig.
