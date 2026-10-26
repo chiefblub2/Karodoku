@@ -158,7 +158,8 @@ function candidateClues(N: number, room: number[], rooms: Room[], obj: (ObjectTy
   const roomOfP = sol.map((c) => room[c]);
   const g: ClueGroups = { position: [], order: [], direct: [], negative: [], rich: [] };
 
-  for (let p = 0; p < P; p++) {
+  // The victim gets no clues: they take the one cell left once every suspect is placed.
+  for (let p = 0; p < victim; p++) {
     const c = sol[p];
     g.position.push({ t: 'row', p, v: rowOf(c, N) }, { t: 'col', p, v: colOf(c, N) });
     g.direct.push({ t: 'inRoom', p, r: roomOfP[p] });
@@ -168,33 +169,31 @@ function candidateClues(N: number, room: number[], rooms: Room[], obj: (ObjectTy
     if (o) g.direct.push({ t: 'onObject', p, o });
     else g.negative.push({ t: 'onFloor', p });
     for (const b of beside[c]) g.rich.push({ t: 'beside', p, o: b });
-    if (p !== victim && roomOfP.filter((r) => r === roomOfP[p]).length === 1) g.rich.push({ t: 'alone', p });
+    if (roomOfP.filter((r) => r === roomOfP[p]).length === 1) g.rich.push({ t: 'alone', p });
   }
 
-  for (let p = 0; p < P; p++) {
-    for (let q = p + 1; q < P; q++) {
+  for (let p = 0; p < victim; p++) {
+    for (let q = p + 1; q < victim; q++) {
       const [a, b] = rng.next() < 0.5 ? [p, q] : [q, p];
-      // Room clues pairing the victim would hand out the murderer too cheaply.
-      if (p !== victim && q !== victim) {
-        if (roomOfP[p] === roomOfP[q]) g.rich.push({ t: 'sameRoom', p: a, q: b });
-        else if (rng.next() < 0.3) g.negative.push({ t: 'diffRoom', p: a, q: b });
-      }
+      if (roomOfP[p] === roomOfP[q]) g.rich.push({ t: 'sameRoom', p: a, q: b });
+      else if (rng.next() < 0.3) g.negative.push({ t: 'diffRoom', p: a, q: b });
       if (Math.abs(rowOf(sol[p], N) - rowOf(sol[q], N)) === 1 && Math.abs(colOf(sol[p], N) - colOf(sol[q], N)) === 1) {
         g.rich.push({ t: 'diag', p: a, q: b });
       }
     }
   }
 
-  // Order clues: consecutive rows/columns pin down the whole order (so the full candidate set
-  // is always unique); a few long-range ones add variety.
-  const byRow = [...Array(P).keys()].sort((a, b) => sol[a] - sol[b]);
-  const byCol = [...Array(P).keys()].sort((a, b) => colOf(sol[a], N) - colOf(sol[b], N));
-  for (let i = 0; i + 1 < P; i++) {
+  // Order clues: consecutive rows/columns pin down the suspects' whole order (so the full
+  // candidate set is always unique); a few long-range ones add variety.
+  const S = victim;
+  const byRow = [...Array(S).keys()].sort((a, b) => sol[a] - sol[b]);
+  const byCol = [...Array(S).keys()].sort((a, b) => colOf(sol[a], N) - colOf(sol[b], N));
+  for (let i = 0; i + 1 < S; i++) {
     g.order.push({ t: 'north', p: byRow[i], q: byRow[i + 1] });
     g.order.push({ t: 'west', p: byCol[i], q: byCol[i + 1] });
   }
   for (let k = 0; k < Math.floor(N / 2); k++) {
-    const i = rng.int(0, P - 3), j = rng.int(i + 2, P - 1);
+    const i = rng.int(0, S - 3), j = rng.int(i + 2, S - 1);
     g.order.push(rng.next() < 0.5 ? { t: 'north', p: byRow[i], q: byRow[j] } : { t: 'west', p: byCol[i], q: byCol[j] });
   }
 

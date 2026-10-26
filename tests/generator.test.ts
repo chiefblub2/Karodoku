@@ -46,6 +46,7 @@ describe.each(SIZES.flatMap((size) => DIFFICULTIES.map((d) => [size, d] as const
       expect(verify(pz, pz.clues, pz.solution)).toBe(true);
       expect(pz.cast).toHaveLength(N - 1);
       expect(new Set(pz.cast).size).toBe(N - 1);
+      expect(pz.clues.filter((cl) => clueRefs(cl).people.includes(N - 1)), seed).toEqual([]);
     }
   });
 
