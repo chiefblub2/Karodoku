@@ -50,11 +50,21 @@ describe.each(SIZES.flatMap((size) => DIFFICULTIES.map((d) => [size, d] as const
     }
   });
 
-  it('has a minimal clue set', () => {
+  it('mentions every suspect in at least one clue', () => {
     for (const seed of seeds) {
       const pz = puzzle(size, difficulty, seed);
-      pz.clues.forEach((_, i) => {
+      const named = new Set(pz.clues.flatMap((cl) => clueRefs(cl).people));
+      for (let p = 0; p < pz.size - 1; p++) expect(named.has(p), `${seed} person ${p}`).toBe(true);
+    }
+  });
+
+  it('has a minimal clue set, apart from each suspect\'s last clue', () => {
+    for (const seed of seeds) {
+      const pz = puzzle(size, difficulty, seed);
+      pz.clues.forEach((cl, i) => {
         const fewer = pz.clues.filter((__, j) => j !== i);
+        const lastMention = clueRefs(cl).people.some((p) => !fewer.some((x) => clueRefs(x).people.includes(p)));
+        if (lastMention) return;
         expect(countSolutions(pz, fewer, 2, 1e8).count, `${seed} clue ${i}`).toBeGreaterThan(1);
       });
     }

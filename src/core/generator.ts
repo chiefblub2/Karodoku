@@ -2,7 +2,7 @@
 // minimal unique clue set → difficulty rating by the logical solver.
 
 import type { Clue } from './clues';
-import { besideMap } from './clues';
+import { besideMap, clueRefs } from './clues';
 import type { Difficulty, ObjectType, Puzzle, Room, RoomType } from './model';
 import { FLOOR_FAMILY, ROOM_TYPES, SUSPECTS, WEAPONS, colOf, isOccupiable, rowOf } from './model';
 import type { Rng } from './rng';
@@ -215,11 +215,16 @@ function removalOrder(g: ClueGroups, difficulty: Difficulty, rng: Rng): Clue[] {
   }
 }
 
-/** Greedily drop clues while the solution stays unique; the result is minimal. */
+/**
+ * Greedily drop clues while the solution stays unique. Every suspect keeps at least one clue that
+ * mentions them, even when logic alone would place them, so nobody looks forgotten; apart from
+ * those, the result is minimal.
+ */
 export function reduceClues(board: Pick<Puzzle, 'size' | 'room' | 'rooms' | 'obj'>, order: Clue[]): Clue[] {
   let kept = order.slice();
   for (const cl of order) {
     const trial = kept.filter((x) => x !== cl);
+    if (clueRefs(cl).people.some((p) => !trial.some((x) => clueRefs(x).people.includes(p)))) continue;
     const res = countSolutions(board, trial, 2, 1_000_000);
     if (!res.aborted && res.count === 1) kept = trial;
   }
