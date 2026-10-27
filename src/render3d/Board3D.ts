@@ -207,7 +207,7 @@ export class Board3D implements BoardView {
     }
     this.bag.track(this.world);
 
-    this.rig.setBoard(this.board.halfExtent);
+    this.rig.setBoard(this.board.halfExtent, this.board.center);
     this.resize();
     this.startFlicker();
     this.loop.invalidate();
@@ -597,6 +597,15 @@ export class Board3D implements BoardView {
       if (typeof h.object.userData.plaque === 'number') return h.object.userData.plaque;
     }
     return -1;
+  }
+
+  anchor(cell: number): { x: number; y: number } | null {
+    if (!this.pz) return null;
+    const { x, z } = cellCenter(cell, this.pz.size);
+    // Just above the cell's north edge, so the tag sits next to the pawn rather than on it.
+    const p = new Vector3(x, surfaceOf(this.pz.obj[cell]) + 0.7, z - 0.42).project(this.rig.camera);
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    return { x: rect.left + ((p.x + 1) / 2) * rect.width, y: rect.top + ((1 - p.y) / 2) * rect.height };
   }
 
   private pick(clientX: number, clientY: number): number {

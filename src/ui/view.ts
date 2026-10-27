@@ -61,6 +61,8 @@ export interface BoardView {
   resize(): void;
   dispose(): void;
   onIntent: (i: Intent) => void;
+  /** Client coordinates just above a pawn standing on `cell` (for its name label), null if unknown. */
+  anchor(cell: number): { x: number; y: number } | null;
   /** Average FPS while animating (3D only), for the low-performance fallback. */
   measuredFps?(): number | null;
 }

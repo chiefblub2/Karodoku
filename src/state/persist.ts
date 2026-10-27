@@ -103,3 +103,22 @@ export const isProgress = (size: number) => (v: unknown): v is Progress =>
   Number.isInteger(v.hints) && typeof v.elapsed === 'number' && typeof v.solved === 'boolean';
 
 export const progressKey = (size: number, difficulty: string, seed: string): string => `game:${size}:${difficulty}:${seed}`;
+
+// ---------- last case & one-time flags ----------
+
+export interface CaseRef { size: number; difficulty: Difficulty; seed: string }
+
+export const isCaseRef = (v: unknown): v is CaseRef =>
+  isObj(v) && (SIZES as readonly number[]).includes(v.size as number) &&
+  (DIFFICULTIES as readonly string[]).includes(v.difficulty as string) && typeof v.seed === 'string' && v.seed.length <= 40;
+
+/** The case played last (never the tutorial), for the menu's "Continue". */
+export const LAST_CASE_KEY = 'last-case';
+
+/** Saved progress of a case, if any. */
+export const loadProgress = (c: CaseRef): Progress | null => load(progressKey(c.size, c.difficulty, c.seed), isProgress(c.size));
+
+const isTrue = (v: unknown): v is true => v === true;
+/** One-time flags: 'tutorial-done', 'tip-longpress'. */
+export const hasFlag = (name: string): boolean => load(`flag:${name}`, isTrue) === true;
+export const setFlag = (name: string): void => save(`flag:${name}`, true);

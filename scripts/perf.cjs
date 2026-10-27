@@ -3,7 +3,10 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
 (async () => {
-  const url = process.argv[2];
+  // Without case parameters the app opens on its menu; measure a hard 8×8 case instead.
+  const u = new URL(process.argv[2]);
+  if (!u.search) u.search = '?n=8&d=hard&s=perf';
+  const url = u.href;
   const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'de-DE' });
   await ctx.addInitScript(() => localStorage.setItem('karodoku2:settings', JSON.stringify({ schemaVersion: 2, size: 8, difficulty: 'hard', renderer: '3d', lang: 'de', sound: false, haptics: true, seenRules: true })));

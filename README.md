@@ -26,7 +26,11 @@ und offline als App (PWA).
   Mondlicht mit Schatten und flackernde Kerzen.
 - **Animationen:** Kamera-Fahrt zum Start, hüpfende Figuren mit Staubwolke, wackelnde Möbel, beim Lösen
   Spotlicht, roter Faden und Stempel „Fall gelöst“. Alles entfällt bei „Bewegung reduzieren“.
-- **Handy-Bedienung:** Person wählen, Feld antippen; lange drücken setzt ein ✕. Hinweis-Leiste mit
+- **Spielmenü** als Startseite: Weiterspielen, Tagesfall, neuer Fall (Größe, Schwierigkeit), interaktives
+  Tutorial in drei Schritten, Spielregeln, Einstellungen. Geteilte Links öffnen den Fall direkt.
+- **Handy-Bedienung:** Person wählen, Finger auf ein Feld halten zeigt eine Vorschau (Figur, Raumname,
+  Raumumriss), loslassen setzt, wegziehen bricht ab; lange drücken setzt ein ✕. Ausgeschlossene Zeilen
+  und Spalten sind schraffiert. Hinweis-Leiste mit
   Wischgesten (hoch = öffnen, seitlich = blättern und Personen/Räume hervorheben), Hinweise abhaken mit
   Stempel „Geprüft“, Möbel-Legende, Zurück/Vor, Prüfen, Tipp, Teilen mit Emoji-Grundriss.
 - **2D-Ansicht** als leichte SVG-Alternative: automatisch ohne WebGL oder bei langsamer 3D-Darstellung,
@@ -51,7 +55,7 @@ und offline als App (PWA).
 | `src/ui/` | Oberfläche, Dialoge, Eingabe, Haptik/Töne, PWA |
 | `tests/` | Vitest: Eindeutigkeit, Regeln, Minimalität, Schwierigkeit, Determinismus, Laufzeit |
 | `scripts/` | Screenshots, Leistungsmessung, Offline-Test, Icons und Legenden-Bilder backen |
-| `screenshots/` | Aktuelle Bilder (Handy 390×844, Desktop 1280×800, 5×5/8×8, hell/dunkel) |
+| `screenshots/` | Titelbild dieser README (Handy 390×844, 8×8, dunkel) |
 | `lineup.html` | Entwicklerseite mit allen Modellen (nicht im Build) |
 
 ## Entwicklung
@@ -63,7 +67,10 @@ npm test             # Vitest (KARODOKU_SEEDS=40 npm test für mehr Seeds)
 npm run typecheck
 npm run build        # Typecheck + Produktions-Build nach dist/
 npx tsx scripts/stats.ts 20                       # Generator-Statistik
-node scripts/screens.cjs http://localhost:5173/ screenshots   # Screenshot-Matrix
+node scripts/screens.cjs http://localhost:5173/ /tmp/karodoku-screens   # Screenshot-Matrix, Menü, Tutorial
+                                                  # (Titelbild: phone-8x8-dark.jpg nach screenshots/ kopieren)
+node scripts/qa.cjs "http://localhost:5173/?n=6&d=medium&s=qa" /tmp   # axe-core + Durchspiel-Test
+node scripts/layout.cjs http://localhost:5173/                 # Feldgröße, Überlappung, Ziele < 44 px
 node scripts/bake-thumbs.cjs                      # Legenden-Bilder neu backen (Dev-Server läuft)
 ```
 

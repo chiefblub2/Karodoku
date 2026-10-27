@@ -1,5 +1,5 @@
 // Interactive smoke test plus axe-core scan: node scripts/qa.cjs <url> <outdir>
-// The scan covers phone and desktop, light and dark, with the board, the open clue sheet and a dialog.
+// The scan covers phone and desktop, light and dark: the board, the open clue sheet, a dialog, the menu and the tutorial.
 const { chromium, devices } = require('playwright');
 const fs = require('fs');
 const AXE = fs.readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
@@ -47,6 +47,17 @@ async function axe(pg) {
       await pg.waitForTimeout(300);
       report[`${key} dialog`] = await axe(pg);
       await pg.keyboard.press('Escape');
+      await pg.waitForTimeout(300);
+      // The game menu, opened from the running case…
+      await pg.click('#btn-menu');
+      await pg.waitForSelector('#menu[open]');
+      await pg.waitForTimeout(300);
+      report[`${key} menu`] = await axe(pg);
+      // …and the tutorial with its first coach mark.
+      await pg.click('[data-menu=tutorial]');
+      await pg.waitForSelector('#coach:not([hidden])');
+      await pg.waitForTimeout(800);
+      report[`${key} tutorial`] = await axe(pg);
       await ctx.close();
     }
   }
@@ -76,7 +87,7 @@ async function axe(pg) {
   for (let i = 0; i < n; i++) {
     if (!(await pg.locator('dialog.accuse').count())) break;
     const c = chips.nth(i);
-    if (await c.isEnabled()) { await c.click(); await pg.waitForTimeout(250); }
+    if (await c.isEnabled({ timeout: 1000 }).catch(() => false)) { await c.click({ timeout: 1000 }).catch(() => {}); await pg.waitForTimeout(250); }
   }
   await pg.waitForTimeout(2500);
   await pg.screenshot({ path: `${out}/qa-3.png` });

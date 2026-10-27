@@ -66,8 +66,8 @@ export function pawnSvg(hue: number, accessory: Accessory | null, initial: strin
     <circle cx="50" cy="29" r="15" fill="${body}" stroke="${dark}" stroke-width="2.5"/>
     <circle cx="45" cy="24" r="4" fill="${light}" opacity=".8"/>
     ${accessory ? ACCESSORY_SVG[accessory] : ''}
-    <circle cx="50" cy="73" r="10" fill="#f6ecd6" stroke="${dark}" stroke-width="2"/>
-    <text x="50" y="77.5" text-anchor="middle" font-size="13" font-weight="800" font-family="Georgia,serif" fill="${dark}">${initial}</text>
+    <circle cx="50" cy="69" r="17" fill="#f6ecd6" stroke="${dark}" stroke-width="3"/>
+    <text x="50" y="77" text-anchor="middle" font-size="24" font-weight="900" font-family="Georgia,serif" fill="${dark}">${initial}</text>
   </svg>`;
 }
 
@@ -92,6 +92,13 @@ export const ICONS = {
   close: '<path d="M18 6 6 18M6 6l12 12"/>',
   mark: '<path d="M6 6l12 12M18 6 6 18"/>',
   chevron: '<path d="m6 15 6-6 6 6"/>',
+  menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+  play: '<circle cx="12" cy="12" r="10"/><path d="m10 8 6 4-6 4z"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="m9 15 2 2 4-4"/>',
+  plus: '<path d="M4 7h16v13H4z"/><path d="M9 7V4h6v3"/><path d="M12 11v6M9 14h6"/>',
+  school: '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2 9 2 12 0v-5"/><path d="M22 9v6"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  accuse: '<path d="M14 4l6 6"/><path d="M12 6l6 6"/><path d="M15 9l-9 9"/><path d="M3 21h8"/>',
 };
 
 export function icon(name: keyof typeof ICONS, cls = 'ui-icon'): string {

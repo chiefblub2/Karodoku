@@ -9,17 +9,28 @@ import type { Lang, Segment } from '../i18n';
 import { LANGS, detectLang, onLangChange, s, setLang } from '../i18n';
 import { GameStore } from '../state/game';
 import type { GameEvent } from '../state/game';
-import type { Settings } from '../state/persist';
-import { defaultSettings, isSettings, load, purgeLegacy, save } from '../state/persist';
+import type { CaseRef, Settings } from '../state/persist';
+import { LAST_CASE_KEY, defaultSettings, hasFlag, isCaseRef, isSettings, load, loadProgress, purgeLegacy, save, setFlag } from '../state/persist';
 import { generatePuzzle } from '../worker/client';
 import { $, esc, fmtTime, isDailySeed, reducedMotion, today } from './dom';
 import { configureFeedback, play, vibrate } from './feedback';
 import { chalkSvg, icon, pawnSvg } from './icons';
+import { menuHtml, segHtml } from './menu';
 import { showDialog, toast } from './overlay';
 import type { BoardView, CastEntry, Intent, Tool, ViewModel } from './view';
 import { createView } from './view-factory';
 
-interface CaseParams { size: number; difficulty: Difficulty; seed: string }
+type CaseParams = CaseRef;
+
+/** The tutorial always plays this easy 5×5 case, never saved. */
+export const TUTORIAL_CASE: CaseParams = { size: 5, difficulty: 'easy', seed: 'tutorial' };
+const TUTORIAL_STEPS = 3;
+
+/** True when the URL names a case (shared or daily link), so the menu is skipped. */
+export const urlHasCase = (search: string): boolean => {
+  const q = new URLSearchParams(search);
+  return q.has('s') || q.has('n') || q.has('d');
+};
 
 export class App {
   settings: Settings = defaultSettings();
@@ -37,11 +48,17 @@ export class App {
   pulseRoom = -1;
   private pulseTimer = 0;
   private bannerTimer = 0;
+  private labelTimer = 0;
   private timer = 0;
   private perfAsked = false;
   private webglFailed = false;
   private loadToken = 0;
   private unsub: (() => void) | null = null;
+  /** What runs on the board: a real case, the tutorial, or nothing (menu at launch / after the tutorial). */
+  mode: 'none' | 'case' | 'tutorial' = 'none';
+  menuOpen = false;
+  /** Current tutorial step (0-based), −1 outside the tutorial. */
+  tutorialStep = -1;
 
   async start(): Promise<void> {
     purgeLegacy();
@@ -52,13 +69,11 @@ export class App {
     onLangChange(() => this.renderAll());
     this.bindStatic();
     this.renderStatic();
-    const params = this.readUrl();
-    await this.openCase(params, { replaceUrl: true });
-    if (!this.settings.seenRules) {
-      this.settings.seenRules = true;
-      this.saveSettings();
-      void this.showRules();
-    }
+    // A shared or daily link opens its case directly; otherwise the menu is the home screen.
+    // (`seenRules` stays in the settings for compatibility but no longer opens the rules.)
+    if (urlHasCase(location.search)) await this.openCase(this.readUrl(), { replaceUrl: true });
+    else this.showMenu();
+    if (!performance.getEntriesByName('karodoku-ready').length) performance.mark('karodoku-ready');
   }
 
   // ---------- settings & URL ----------
@@ -86,12 +101,16 @@ export class App {
 
   // ---------- case lifecycle ----------
 
-  async openCase(p: CaseParams, opts: { replaceUrl?: boolean } = {}): Promise<void> {
+  async openCase(p: CaseParams, opts: { replaceUrl?: boolean; tutorial?: boolean } = {}): Promise<void> {
     const token = ++this.loadToken;
-    this.settings.size = p.size;
-    this.settings.difficulty = p.difficulty;
-    this.saveSettings();
-    this.writeUrl(p, !!opts.replaceUrl);
+    const tutorial = !!opts.tutorial;
+    if (!tutorial) {
+      this.settings.size = p.size;
+      this.settings.difficulty = p.difficulty;
+      this.saveSettings();
+      this.writeUrl(p, !!opts.replaceUrl);
+      save(LAST_CASE_KEY, { size: p.size, difficulty: p.difficulty, seed: p.seed });
+    }
     const loading = $('#loading');
     const slow = window.setTimeout(() => { loading.hidden = false; }, 120);
     $('#loading-text').textContent = s().generating;
@@ -105,8 +124,12 @@ export class App {
     if (token !== this.loadToken) return;
 
     this.unsub?.();
+    this.game?.persist();
     this.pz = pz;
-    this.game = new GameStore(pz);
+    // The tutorial never reads or writes saved progress, so a real case's save stays untouched.
+    this.game = new GameStore(pz, { persist: !tutorial });
+    this.mode = tutorial ? 'tutorial' : 'case';
+    this.tutorialStep = tutorial ? 0 : -1;
     this.unsub = this.game.subscribe((e) => this.onGameEvent(e));
     this.cast = [
       ...pz.cast.map((si, i) => {
@@ -124,6 +147,7 @@ export class App {
     this.view!.setPuzzle(pz, this.cast);
     this.view!.fx({ type: 'intro', animate: !this.game.resumed && !reducedMotion() });
     this.renderAll();
+    this.renderCoach();
     this.startTimer();
     if (this.game.progress.solved) this.refreshView();
     this.watchPerformance();
@@ -217,7 +241,8 @@ export class App {
   startTimer(): void {
     clearInterval(this.timer);
     this.timer = window.setInterval(() => {
-      if (document.hidden || !this.game || this.game.progress.solved) return;
+      // Paused while the menu is open or nothing is in play.
+      if (document.hidden || !this.game || this.game.progress.solved || this.menuOpen || this.mode === 'none') return;
       this.game.tick();
     }, 1000);
   }
@@ -247,6 +272,7 @@ export class App {
       this.pressCell = i.cell;
       if (i.cell >= 0) this.showRoomBanner(i.cell, true);
       else this.hideBanner();
+      if (i.cell >= 0 && g.personAt(i.cell) >= 0) this.showName(g.personAt(i.cell));
       this.refreshView();
       return;
     }
@@ -273,6 +299,8 @@ export class App {
         vibrate(10);
         this.tool = this.firstUnplaced(e.p) ?? this.tool;
         this.announce(`${this.cast[e.p].name}: ${cellName(e.cell, g.size)}`);
+        this.showName(e.p);
+        if (this.tutorialStep === 0) this.advanceTutorial();
         break;
       case 'removed':
         this.view?.fx({ type: 'removed', p: e.p, cell: e.cell });
@@ -284,6 +312,7 @@ export class App {
       case 'marked':
         this.view?.fx({ type: 'marked', cell: e.cell, on: e.on });
         play('mark');
+        if (e.on && this.tutorialStep === 1) this.advanceTutorial();
         break;
       case 'blocked':
         this.view?.fx({ type: 'blocked', cell: e.cell });
@@ -294,6 +323,7 @@ export class App {
       case 'hint':
         this.view?.fx({ type: 'placed', p: e.p, cell: e.cell, from: -1 });
         toast(t.hintUsed(this.cast[e.p].name));
+        this.showName(e.p);
         this.tool = this.firstUnplaced(e.p) ?? this.tool;
         break;
       case 'check':
@@ -354,9 +384,7 @@ export class App {
     if (!this.game) return;
     const t = s();
     const pz = this.game.pz;
-    $('#case-story').textContent = t.story(VICTIM_NAME, t.weapons[pz.weapon]);
-    $('#btn-case').innerHTML = `${icon('case')}<span>${isDailySeed(pz.seed) ? t.dailyShort : t.newCase}</span>
-      <small>${pz.size}×${pz.size} · ${t.difficulties[pz.difficulty]}</small>`;
+    $('#case-story').innerHTML = `<span class="short">${esc(t.caseLine(t.weaponNames[pz.weapon]))}</span><span class="full">${esc(t.story(VICTIM_NAME, t.weapons[pz.weapon]))}</span>`;
     this.renderLegend();
     this.renderPlayState();
   }
@@ -378,6 +406,10 @@ export class App {
     });
     $('#btn-rules').innerHTML = icon('help');
     $('#btn-rules').setAttribute('aria-label', t.rulesTitle);
+    $('#btn-menu').innerHTML = icon('menu');
+    $('#btn-menu').setAttribute('aria-label', t.menu.open);
+    if (this.menuOpen) this.renderMenu();
+    this.renderCoach();
     document.querySelectorAll<HTMLElement>('.side-tab').forEach((b) => {
       b.textContent = b.dataset.tab === 'clues' ? t.clues : t.furniture;
     });
@@ -406,7 +438,14 @@ export class App {
       aria-label="${esc(t.mark)}"><span class="chip-art mark-art">${icon('mark')}</span><span class="chip-name">${esc(t.mark)}</span></button>`);
     const pal = $('#palette');
     pal.innerHTML = chips.join('');
-    pal.classList.toggle('crowded', chips.length > 6);
+    // The palette scrolls sideways on 8×8 phones: keep the selected chip in view.
+    const active = pal.querySelector<HTMLElement>('.chip.active');
+    if (active && pal.scrollWidth > pal.clientWidth) {
+      const l = active.offsetLeft - pal.offsetLeft, r = l + active.offsetWidth;
+      if (l < pal.scrollLeft) pal.scrollLeft = l - 2;
+      else if (r > pal.scrollLeft + pal.clientWidth) pal.scrollLeft = r - pal.clientWidth + 2;
+    }
+    this.markCoachTarget();
   }
 
   segmentsHtml(segs: Segment[]): string {
@@ -528,14 +567,24 @@ export class App {
     const btn = (id: string, ic: Parameters<typeof icon>[0], label: string, disabled = false) =>
       `<button type="button" class="action" data-action="${id}" ${disabled ? 'disabled' : ''}>${icon(ic)}<span>${esc(label)}</span></button>`;
     const solved = g.progress.solved;
+    // Everyone is placed correctly but nobody was accused yet (e.g. the dialog was dismissed):
+    // the check slot becomes the way back to the accusation.
+    const third = this.canAccuse()
+      ? `<button type="button" class="action accuse" data-action="accuse">${icon('accuse')}<span>${esc(a.accuse)}</span></button>`
+      : btn('check', 'check', a.check, solved);
     $('#actions').innerHTML = [
       btn('undo', 'undo', a.undo, !g.canUndo() || solved),
       btn('redo', 'redo', a.redo, !g.canRedo() || solved),
-      btn('check', 'check', a.check, solved),
+      third,
       btn('hint', 'hint', a.hint, solved),
       btn('reset', 'reset', a.reset),
       btn('share', 'share', a.share),
     ].join('');
+  }
+
+  canAccuse(): boolean {
+    const g = this.game;
+    return !!g && g.isComplete() && g.isCorrect() && !g.progress.solved;
   }
 
   renderA11yGrid(): void {
@@ -591,6 +640,24 @@ export class App {
   hideBanner(): void {
     clearTimeout(this.bannerTimer);
     $('#room-banner').classList.remove('show');
+  }
+
+  /** Name tag above a pawn for about 1.5 s (screen readers get the #live announcement instead). */
+  showName(p: number): void {
+    const g = this.game, c = this.cast[p];
+    const cell = g?.progress.pos[p] ?? -1;
+    const el = document.getElementById('pawn-label');
+    const at = cell >= 0 ? this.view?.anchor(cell) : null;
+    if (!el || !at || !c) return;
+    const area = el.parentElement!.getBoundingClientRect();
+    el.textContent = c.name;
+    el.style.setProperty('--ph', String(c.hue));
+    const half = el.offsetWidth / 2 + 4;
+    el.style.left = `${Math.min(area.width - half, Math.max(half, at.x - area.left))}px`;
+    el.style.top = `${Math.max(el.offsetHeight + 4, at.y - area.top)}px`;
+    el.classList.add('show');
+    clearTimeout(this.labelTimer);
+    this.labelTimer = window.setTimeout(() => el.classList.remove('show'), 1500);
   }
 
   announce(msg: string): void { $('#live').textContent = msg; }
@@ -696,10 +763,11 @@ export class App {
         <dl class="result-stats"><div><dt>${esc(t.time)}</dt><dd>${fmtTime(g.progress.elapsed)}</dd></div>
         <div><dt>${esc(t.hintsUsed)}</dt><dd>${g.progress.hints}</dd></div></dl>
         <pre class="share-preview">${esc(this.shareSummary())}</pre>`,
-      actions: [{ label: t.shareResult, value: 'share' }, { label: t.nextCase, primary: true, value: 'next' }],
+      actions: [{ label: t.toMenu, value: 'menu' }, { label: t.shareResult, value: 'share' }, { label: t.nextCase, primary: true, value: 'next' }],
     });
     if (choice === 'share') await this.share(true);
     if (choice === 'next') await this.openCase({ size: g.size, difficulty: g.pz.difficulty, seed: randomSeed() });
+    if (choice === 'menu') this.openMenu();
   }
 
   async share(result = false): Promise<void> {
@@ -722,47 +790,224 @@ export class App {
     }
   }
 
-  async showCaseSheet(): Promise<void> {
+  /** Wire segmented controls: clicking a radio checks it and reports the group's name and value. */
+  private bindSegs(root: ParentNode, onPick: (name: string, value: string) => void): void {
+    root.querySelectorAll<HTMLElement>('.seg').forEach((group) => {
+      group.addEventListener('click', (e) => {
+        const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-value]');
+        if (!b) return;
+        group.querySelectorAll('[data-value]').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+        onPick(group.dataset.name!, b.dataset.value!);
+      });
+    });
+  }
+
+  async showSettings(): Promise<void> {
     const t = s();
     const st = this.settings;
-    const seg = (name: string, options: [string, string][], value: string) =>
-      `<div class="seg" role="radiogroup" data-name="${name}">${options.map(([v, l]) =>
-        `<button type="button" role="radio" data-value="${v}" aria-checked="${v === value}">${esc(l)}</button>`).join('')}</div>`;
     const body = `
-      <label class="field"><span>${esc(t.size)}</span>${seg('size', SIZES.map((n) => [String(n), `${n}×${n}`]), String(st.size))}</label>
-      <label class="field"><span>${esc(t.difficulty)}</span>${seg('difficulty', DIFFICULTIES.map((d) => [d, t.difficulties[d]]), st.difficulty)}</label>
-      <div class="sheet-buttons"><button type="button" class="btn primary" data-go="new">${esc(t.startCase)}</button>
-        <button type="button" class="btn" data-go="daily">${esc(t.daily)} · ${today()}</button></div>
-      <hr>
-      <label class="field"><span>${esc(t.settings.renderer)}</span>${seg('renderer', [['3d', t.settings.r3d], ['2d', t.settings.r2d]], st.renderer)}</label>
-      <label class="field"><span>${esc(t.settings.language)}</span>${seg('lang', LANGS.map((l) => [l, l === 'de' ? 'Deutsch' : 'English']), (st.lang ?? detectLang()))}</label>
-      <label class="field"><span>${esc(t.settings.sound)}</span>${seg('sound', [['1', t.settings.on], ['0', t.settings.off]], st.sound ? '1' : '0')}</label>
-      <label class="field"><span>${esc(t.settings.haptics)}</span>${seg('haptics', [['1', t.settings.on], ['0', t.settings.off]], st.haptics ? '1' : '0')}</label>`;
-    const pick = { size: st.size, difficulty: st.difficulty };
-    const v = await showDialog({
-      title: t.newCaseTitle, body, className: 'sheet',
-      setup: (d, close) => {
-        d.querySelectorAll<HTMLElement>('.seg').forEach((group) => {
-          group.addEventListener('click', (e) => {
-            const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-value]');
-            if (!b) return;
-            group.querySelectorAll('[data-value]').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
-            const val = b.dataset.value!;
-            switch (group.dataset.name) {
-              case 'size': pick.size = Number(val); break;
-              case 'difficulty': pick.difficulty = val as Difficulty; break;
-              case 'renderer': void this.switchRenderer(val as '2d' | '3d'); break;
-              case 'lang': this.settings.lang = val as Lang; this.saveSettings(); setLang(val as Lang); break;
-              case 'sound': this.settings.sound = val === '1'; this.saveSettings(); configureFeedback(this.settings); play('clack'); break;
-              case 'haptics': this.settings.haptics = val === '1'; this.saveSettings(); configureFeedback(this.settings); vibrate(20); break;
-            }
-          });
-        });
-        d.querySelectorAll<HTMLButtonElement>('[data-go]').forEach((b) => { b.onclick = () => close(b.dataset.go!); });
-      },
+      ${segHtml('renderer', t.settings.renderer, [['3d', t.settings.r3d], ['2d', t.settings.r2d]], st.renderer)}
+      ${segHtml('lang', t.settings.language, LANGS.map((l) => [l, l === 'de' ? 'Deutsch' : 'English']), st.lang ?? detectLang())}
+      ${segHtml('sound', t.settings.sound, [['1', t.settings.on], ['0', t.settings.off]], st.sound ? '1' : '0')}
+      ${segHtml('haptics', t.settings.haptics, [['1', t.settings.on], ['0', t.settings.off]], st.haptics ? '1' : '0')}`;
+    await showDialog({
+      title: t.menu.settings, body, className: 'settings',
+      actions: [{ label: t.close, primary: true, value: '' }],
+      setup: (d) => this.bindSegs(d, (name, val) => {
+        switch (name) {
+          case 'renderer': void this.switchRenderer(val as '2d' | '3d'); break;
+          case 'lang': this.settings.lang = val as Lang; this.saveSettings(); setLang(val as Lang); break;
+          case 'sound': this.settings.sound = val === '1'; this.saveSettings(); configureFeedback(this.settings); play('clack'); break;
+          case 'haptics': this.settings.haptics = val === '1'; this.saveSettings(); configureFeedback(this.settings); vibrate(20); break;
+        }
+      }),
     });
-    if (v === 'new') await this.openCase({ ...pick, seed: randomSeed() });
-    else if (v === 'daily') await this.openCase({ ...pick, seed: today() });
+  }
+
+  // ---------- game menu ----------
+
+  /** The last real case, if it has saved progress and isn't solved yet. */
+  savedCase(): { ref: CaseRef; elapsed: number } | null {
+    const ref = load(LAST_CASE_KEY, isCaseRef);
+    const pr = ref && loadProgress(ref);
+    return ref && pr && !pr.solved ? { ref, elapsed: pr.elapsed } : null;
+  }
+
+  /** Something to go back to behind the menu (a case, solved or not, or the tutorial). */
+  canResume(): boolean { return this.mode !== 'none' && !!this.game; }
+
+  private menuPick = { size: 6, difficulty: 'medium' as Difficulty };
+
+  renderMenu(): void {
+    const t = s();
+    const g = this.game;
+    let resume: { title: string; sub: string } | null = null;
+    if (this.canResume() && g && !g.progress.solved) {
+      resume = this.mode === 'tutorial'
+        ? { title: t.menu.tutorialRunning, sub: t.coach.step(this.tutorialStep + 1, TUTORIAL_STEPS) }
+        : { title: t.menu.continue, sub: t.menu.continueSub(g.size, t.difficulties[g.pz.difficulty], fmtTime(g.progress.elapsed)) };
+    } else {
+      const saved = this.savedCase();
+      if (saved) resume = { title: t.menu.continue, sub: t.menu.continueSub(saved.ref.size, t.difficulties[saved.ref.difficulty], fmtTime(saved.elapsed)) };
+    }
+    const daily = { size: this.settings.size, difficulty: this.settings.difficulty, seed: today() };
+    const dailyPr = loadProgress(daily);
+    const el = $<HTMLDialogElement>('#menu');
+    el.innerHTML = menuHtml({
+      canClose: this.canResume(),
+      resume,
+      daily: {
+        solved: !!dailyPr?.solved,
+        sub: dailyPr?.solved ? t.menu.dailySolved(fmtTime(dailyPr.elapsed)) : t.menu.dailySub(today(), daily.size, t.difficulties[daily.difficulty]),
+      },
+      pick: this.menuPick,
+      recommendTutorial: !hasFlag('tutorial-done') && !load(LAST_CASE_KEY, isCaseRef),
+      brand: document.querySelector('.brand-mark')?.outerHTML ?? '',
+    });
+    this.bindSegs(el, (name, val) => {
+      if (name === 'size') this.menuPick.size = Number(val);
+      if (name === 'difficulty') this.menuPick.difficulty = val as Difficulty;
+    });
+  }
+
+  /** Show the menu. In a running game it pauses the timer and takes a history entry, so Back returns. */
+  openMenu(): void {
+    if (this.menuOpen) return;
+    if (this.canResume() && !history.state?.menu) history.pushState({ menu: true }, '', location.href);
+    this.showMenu();
+  }
+
+  showMenu(): void {
+    const el = $<HTMLDialogElement>('#menu');
+    this.game?.persist();
+    this.menuPick = { size: this.settings.size, difficulty: this.settings.difficulty };
+    this.menuOpen = true;
+    this.hideBanner();
+    this.renderMenu();
+    if (!el.open) el.showModal();
+    (el.querySelector<HTMLElement>('.menu-row.recommended') ?? el.querySelector<HTMLElement>('.menu-row:not(.static)'))?.focus();
+  }
+
+  /** Hide the menu without touching history (used by popstate and before starting something). */
+  hideMenu(): void {
+    const el = $<HTMLDialogElement>('#menu');
+    this.menuOpen = false;
+    if (el.open) el.close();
+    if (this.canResume()) $('#btn-menu').focus();
+  }
+
+  /** Back to whatever runs behind the menu. */
+  resumeFromMenu(): void {
+    if (!this.canResume()) return;
+    if (history.state?.menu) history.back(); // popstate hides the menu
+    else this.hideMenu();
+  }
+
+  /** Start a case from the menu; the menu's history entry (if any) becomes the case's. */
+  private async startFromMenu(p: CaseParams): Promise<void> {
+    const replace = !!history.state?.menu;
+    this.endTutorial(false);
+    this.hideMenu();
+    await this.openCase(p, { replaceUrl: replace });
+  }
+
+  async onMenu(action: string): Promise<void> {
+    switch (action) {
+      case 'close': this.resumeFromMenu(); break;
+      case 'continue': {
+        const g = this.game;
+        if (this.canResume() && g && !g.progress.solved) { this.resumeFromMenu(); break; }
+        const saved = this.savedCase();
+        if (saved) await this.startFromMenu(saved.ref);
+        break;
+      }
+      case 'daily': await this.startFromMenu({ size: this.settings.size, difficulty: this.settings.difficulty, seed: today() }); break;
+      case 'new': await this.startFromMenu({ ...this.menuPick, seed: randomSeed() }); break;
+      case 'tutorial': await this.startTutorial(); break;
+      case 'rules': await this.showRules(); break;
+      case 'settings': await this.showSettings(); break;
+    }
+  }
+
+  /** Back/forward: into or out of the menu, or to another case's URL. */
+  async onPopState(): Promise<void> {
+    if (history.state?.menu) { if (!this.menuOpen) this.showMenu(); return; }
+    const url = this.readUrl();
+    const g = this.game;
+    const same = this.mode === 'case' && g && g.size === url.size && g.pz.difficulty === url.difficulty && g.pz.seed === url.seed;
+    if (this.menuOpen && this.canResume() && (same || (this.mode === 'tutorial' && history.state?.tutorial))) { this.hideMenu(); return; }
+    if (!urlHasCase(location.search)) { this.endTutorial(false); this.showMenu(); return; }
+    if (same) { this.hideMenu(); return; }
+    this.endTutorial(false);
+    this.hideMenu();
+    await this.openCase(url, { replaceUrl: true });
+  }
+
+  // ---------- tutorial ----------
+
+  async startTutorial(): Promise<void> {
+    // Its own history entry without case parameters: Back leads to the menu.
+    if (history.state?.menu) history.replaceState({ tutorial: true }, '', location.pathname);
+    else history.pushState({ tutorial: true }, '', location.pathname);
+    this.hideMenu();
+    await this.openCase(TUTORIAL_CASE, { tutorial: true });
+  }
+
+  advanceTutorial(): void {
+    if (this.tutorialStep < 0) return;
+    this.tutorialStep++;
+    if (this.tutorialStep >= TUTORIAL_STEPS) {
+      toast(s().coach.done);
+      this.endTutorial(true);
+      this.openMenu();
+      return;
+    }
+    play('tick');
+    this.renderCoach();
+    this.announce(`${s().coach.step(this.tutorialStep + 1, TUTORIAL_STEPS)}. ${s().coach.steps[this.tutorialStep]}`);
+  }
+
+  /** Leave the tutorial (finished, skipped, or replaced by a real case). */
+  endTutorial(done: boolean): void {
+    if (this.mode !== 'tutorial') return;
+    if (done) setFlag('tutorial-done');
+    this.tutorialStep = -1;
+    this.mode = 'none';
+    this.renderCoach();
+  }
+
+  skipTutorial(): void {
+    this.endTutorial(true);
+    this.openMenu();
+  }
+
+  /** Coach mark for the current tutorial step. */
+  renderCoach(): void {
+    const el = document.getElementById('coach');
+    if (!el) return;
+    this.markCoachTarget();
+    if (this.tutorialStep < 0) { el.hidden = true; el.innerHTML = ''; return; }
+    const t = s();
+    const n = this.tutorialStep;
+    // Steps about the board and palette cover the clue sheet; the clue step covers the top of the board.
+    const desktop = window.matchMedia?.('(min-width: 900px)').matches;
+    const host = n < 2 && !desktop ? $('.dock') : $('.board-area');
+    if (el.parentElement !== host) host.prepend(el);
+    el.hidden = false;
+    el.setAttribute('aria-label', t.menu.tutorial);
+    el.innerHTML = `<p class="coach-step">${esc(t.coach.step(n + 1, TUTORIAL_STEPS))}</p>
+      <p class="coach-text">${esc(t.coach.steps[n])}</p>
+      <button type="button" class="btn coach-skip" data-coach="skip">${esc(t.coach.skip)}</button>`;
+  }
+
+  /** Highlight the control the current coach mark talks about (re-applied after the palette re-renders). */
+  markCoachTarget(): void {
+    document.querySelectorAll('.coach-target').forEach((x) => x.classList.remove('coach-target'));
+    const n = this.tutorialStep;
+    if (n < 0) return;
+    const desktop = window.matchMedia?.('(min-width: 900px)').matches;
+    const target = n === 0 ? '#palette' : n === 1 ? '#palette [data-person="mark"]' : desktop ? '.side-panel' : '#clue-bar';
+    document.querySelector(target)?.classList.add('coach-target');
   }
 
   async showBio(p: number): Promise<void> {
@@ -783,7 +1028,17 @@ export class App {
 
   bindStatic(): void {
     $('#btn-rules').onclick = () => void this.showRules();
-    $('#btn-case').onclick = () => void this.showCaseSheet();
+    $('#btn-menu').onclick = () => this.openMenu();
+    const menu = $<HTMLDialogElement>('#menu');
+    menu.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-menu]');
+      if (b) void this.onMenu(b.dataset.menu!);
+    });
+    // Esc returns to a running game; at launch there is nothing behind the menu.
+    menu.addEventListener('cancel', (e) => { e.preventDefault(); this.resumeFromMenu(); });
+    $('#coach').addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('[data-coach="skip"]')) this.skipTutorial();
+    });
     $('#case-strip').onclick = () => {
       const el = $('#case-strip');
       const open = el.getAttribute('aria-expanded') !== 'true';
@@ -809,6 +1064,10 @@ export class App {
       if (!chip || pressed) return;
       this.tool = chip.dataset.person === 'mark' ? 'mark' : Number(chip.dataset.person);
       play('tick');
+      if (this.tool === 'mark' && this.mode === 'case' && !hasFlag('tip-longpress')) {
+        setFlag('tip-longpress');
+        toast(s().longPressTip, 3200);
+      }
       this.renderPalette();
       this.refreshView();
     });
@@ -822,6 +1081,7 @@ export class App {
         case 'check': this.game.check(); break;
         case 'hint': if (this.game.hint() === null) toast(s().noHint); break;
         case 'reset': void this.confirmReset(); break;
+        case 'accuse': void this.accuse(); break;
         case 'share': void this.share(this.game.progress.solved); break;
       }
     });
@@ -844,6 +1104,7 @@ export class App {
         this.renderPlayState();
         // From the full sheet, drop back to half height so the highlight on the board shows.
         if (this.focusClue >= 0 && fromFullSheet) this.setSheetOpen(false);
+        if (this.focusClue >= 0 && this.tutorialStep === 2) this.advanceTutorial();
       }
     };
     $('#side-clues').addEventListener('click', onClueClick);
@@ -891,7 +1152,13 @@ export class App {
     });
     grid.addEventListener('focusin', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-cell]');
-      if (b && this.game) { this.selectedCell = Number(b.dataset.cell); this.hoverCell = this.selectedCell; this.refreshView(); }
+      if (b && this.game) {
+        this.selectedCell = Number(b.dataset.cell);
+        this.hoverCell = this.selectedCell;
+        this.refreshView();
+        const p = this.game.personAt(this.selectedCell);
+        if (p >= 0) this.showName(p);
+      }
     });
     grid.addEventListener('keydown', (e) => {
       if (!this.game) return;
@@ -924,7 +1191,7 @@ export class App {
       else if (e.key === 'x' || e.key === 'X') { this.tool = 'mark'; this.renderPalette(); this.refreshView(); }
     });
 
-    window.addEventListener('popstate', () => void this.openCase(this.readUrl(), { replaceUrl: true }));
+    window.addEventListener('popstate', () => void this.onPopState());
     window.addEventListener('resize', () => { this.view?.resize(); this.syncCluePreview(); });
     window.addEventListener('pagehide', () => this.game?.persist());
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.game?.persist(); });
