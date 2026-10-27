@@ -100,6 +100,7 @@ export const en: Strings = {
   cell: (name, room, object, person, marked) =>
     [name, room, object ?? 'bare floor', person ? `${person} is here` : marked ? 'marked' : null].filter(Boolean).join(', '),
   boardLabel: 'Game board',
+  dockLabel: 'Clues and tools',
   updateReady: 'A new version is available.',
   reload: 'Update',
   victim: 'Victim',

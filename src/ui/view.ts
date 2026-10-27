@@ -24,8 +24,10 @@ export interface ViewModel {
   tool: Tool;
   /** Last tapped / keyboard-focused cell, −1 for none. */
   selectedCell: number;
-  /** Cell under the pointer (for the ghost pawn), −1 for none. */
+  /** Cell under the pointer or a pressing finger (for the ghost pawn), −1 for none. */
   hoverCell: number;
+  /** Room outlined while a finger rests on one of its cells, −1 for none. */
+  outlineRoom: number;
   highlightRooms: ReadonlySet<number>;
   highlightPeople: ReadonlySet<number>;
   solved: boolean;
@@ -35,6 +37,8 @@ export type Intent =
   | { type: 'tap'; cell: number }
   | { type: 'longpress'; cell: number }
   | { type: 'hover'; cell: number }
+  /** A finger or pen rests on a cell (preview only, −1 when it lifts); a `tap` may follow. */
+  | { type: 'press'; cell: number }
   /** A room's name plaque was tapped or held: name the room, never place or mark. */
   | { type: 'room'; room: number };
 

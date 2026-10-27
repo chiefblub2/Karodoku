@@ -6,6 +6,7 @@ import {
   PointLight, Quaternion, Raycaster, Scene, SpotLight, SRGBColorSpace, TubeGeometry, Vector2, Vector3, WebGLRenderer,
   AdditiveBlending,
 } from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Puzzle } from '../core/model';
 import { isBlocking } from '../core/model';
 import { s } from '../i18n';
@@ -13,7 +14,7 @@ import { reducedMotion } from '../ui/dom';
 import { attachPointer } from '../ui/pointer';
 import type { BoardView, CastEntry, Fx, Intent, ViewModel } from '../ui/view';
 import { Bag } from './bag';
-import { buildBoard, cellCenter } from './board';
+import { WALL_H, buildBoard, cellCenter } from './board';
 import type { BoardParts } from './board';
 import { CameraRig } from './camera';
 import { buildFurniture, surfaceOf } from './furniture';
@@ -21,7 +22,7 @@ import type { FurnitureParts } from './furniture';
 import { Loop, ease, tween } from './loop';
 import { burst } from './particles';
 import { PawnFactory, ghostOf, lockDecor, ringDecal } from './pawns';
-import { markCanvas, setMaxAnisotropy, softSquareCanvas } from './textures';
+import { hatchCanvas, markCanvas, setMaxAnisotropy, softSquareCanvas } from './textures';
 
 const RING = { conflict: '#ff3b2f', wrong: '#ff3b2f', glow: '#ffcf6a' } as const;
 
@@ -49,6 +50,9 @@ export class Board3D implements BoardView {
   private pawns = new Map<number, PawnState>();
   private ghosts = new Map<number, Group>();
   private ghost: Group | null = null;
+  private ghostMark!: Mesh;
+  private outlines = new Map<number, Mesh>();
+  private dimmed = new Set<number>();
   private shade!: InstancedMesh;
   private glow!: InstancedMesh;
   private marks!: InstancedMesh;
@@ -149,7 +153,10 @@ export class Board3D implements BoardView {
     // Overlays.
     const plane = bag.geo(new PlaneGeometry(1, 1));
     plane.rotateX(-Math.PI / 2);
-    this.shade = new InstancedMesh(plane, bag.mat(new MeshBasicMaterial({ color: '#0b0603', transparent: true, opacity: 0.24, depthWrite: false })), N * N);
+    // Ruled-out cells: a dark grey hatched veil (darkens and greys the floor); their furniture is tinted in update().
+    const hatchTex = bag.tex(new CanvasTexture(hatchCanvas()));
+    hatchTex.colorSpace = SRGBColorSpace;
+    this.shade = new InstancedMesh(plane, bag.mat(new MeshBasicMaterial({ map: hatchTex, transparent: true, depthWrite: false })), N * N);
     this.shade.position.y = 0.003;
     this.shade.renderOrder = 1;
     this.glow = new InstancedMesh(plane, bag.mat(new MeshBasicMaterial({ color: '#ffc861', transparent: true, opacity: 0.3, depthWrite: false, blending: AdditiveBlending })), N * N);
@@ -163,8 +170,18 @@ export class Board3D implements BoardView {
     this.sel = new Mesh(plane, bag.mat(new MeshBasicMaterial({ map: selTex, color: '#ffe2a0', transparent: true, depthWrite: false, blending: AdditiveBlending })));
     this.sel.position.y = 0.006;
     this.sel.visible = false;
+    this.ghostMark = new Mesh(plane, bag.mat(new MeshBasicMaterial({ map: markTex, transparent: true, opacity: 0.4, depthWrite: false })));
+    this.ghostMark.scale.set(0.62, 1, 0.62);
+    this.ghostMark.renderOrder = 3;
+    this.ghostMark.visible = false;
     for (const m of [this.shade, this.glow, this.marks]) { m.count = 0; m.frustumCulled = false; }
-    this.world.add(this.shade, this.glow, this.marks, this.sel);
+    this.world.add(this.shade, this.glow, this.marks, this.sel, this.ghostMark);
+    // Give furniture per-instance colours up front (white = untinted), so dimming never recompiles shaders.
+    const white = new Color(1, 1, 1);
+    for (const m of this.furnitureMeshes()) {
+      for (let i = 0; i < m.count; i++) m.setColorAt(i, white);
+      m.instanceColor!.needsUpdate = true;
+    }
 
     // Pawns (hidden until placed).
     const factory = new PawnFactory(bag);
@@ -206,6 +223,8 @@ export class Board3D implements BoardView {
     this.pawns.clear();
     this.ghosts.clear();
     this.ghost = null;
+    this.outlines.clear();
+    this.dimmed.clear();
     this.animatingPawns.clear();
     this.bag.dispose();
     this.bag = new Bag();
@@ -230,6 +249,11 @@ export class Board3D implements BoardView {
     }
     this.shade.count = n;
     this.shade.instanceMatrix.needsUpdate = true;
+    this.dimFurniture(vm.shaded);
+
+    // Outline of the room under a resting finger, drawn along the tops of its walls.
+    for (const [r, m] of this.outlines) m.visible = r === vm.outlineRoom;
+    if (vm.outlineRoom >= 0 && !this.outlines.has(vm.outlineRoom)) this.world.add(this.buildOutline(vm.outlineRoom));
 
     // Highlighted rooms.
     n = 0;
@@ -273,11 +297,18 @@ export class Board3D implements BoardView {
       st.lock.visible = cell >= 0 && vm.locked.has(p) && !this.cast[p].victim;
     }
 
-    // Ghost of the selected person on the hovered cell.
+    // Ghost of the selected person (or a faint ✕) on the hovered / pressed cell.
     if (this.ghost) this.ghost.visible = false;
+    this.ghostMark.visible = false;
     const tool = vm.tool;
     const hc = vm.hoverCell;
-    if (typeof tool === 'number' && hc >= 0 && !vm.solved && !isBlocking(pz.obj[hc]) && vm.pos.indexOf(hc) < 0) {
+    const ghostOk = hc >= 0 && !vm.solved && !isBlocking(pz.obj[hc]) && vm.pos.indexOf(hc) < 0;
+    if (ghostOk && tool === 'mark' && !vm.marks.has(hc)) {
+      const { x, z } = cellCenter(hc, N);
+      this.ghostMark.position.set(x, surfaceOf(pz.obj[hc]) + 0.014, z);
+      this.ghostMark.visible = true;
+    }
+    if (ghostOk && typeof tool === 'number') {
       this.ghost = this.ghosts.get(tool) ?? null;
       if (this.ghost) {
         const { x, z } = cellCenter(hc, N);
@@ -288,6 +319,54 @@ export class Board3D implements BoardView {
 
     this.ensurePulse();
     this.loop.invalidate();
+  }
+
+  private furnitureMeshes(): InstancedMesh[] {
+    const out = new Set<InstancedMesh>();
+    for (const items of this.furniture?.byCell.values() ?? []) for (const it of items) out.add(it.mesh);
+    return [...out];
+  }
+
+  /** Darken the furniture standing in ruled-out cells, and restore cells that are no longer shaded. */
+  private dimFurniture(shaded: ReadonlySet<number>): void {
+    const byCell = this.furniture?.byCell;
+    if (!byCell) return;
+    const dim = new Color(0.45, 0.43, 0.45), white = new Color(1, 1, 1);
+    const touched = new Set<InstancedMesh>();
+    const paint = (c: number, col: Color) => {
+      for (const it of byCell.get(c) ?? []) { it.mesh.setColorAt(it.index, col); touched.add(it.mesh); }
+    };
+    for (const c of this.dimmed) if (!shaded.has(c)) paint(c, white);
+    for (const c of shaded) if (!this.dimmed.has(c)) paint(c, dim);
+    this.dimmed = new Set(shaded);
+    for (const m of touched) m.instanceColor!.needsUpdate = true;
+  }
+
+  private buildOutline(room: number): Mesh {
+    const pz = this.pz!, N = pz.size;
+    const w = 0.11, y = WALL_H + 0.012;
+    const strips: PlaneGeometry[] = [];
+    const strip = (x: number, z: number, horizontal: boolean) => {
+      const g = new PlaneGeometry(horizontal ? 1 + w : w, horizontal ? w : 1 + w);
+      g.rotateX(-Math.PI / 2);
+      g.translate(x - N / 2, y, z - N / 2);
+      strips.push(g);
+    };
+    const out = (r: number, k: number) => r < 0 || k < 0 || r >= N || k >= N || pz.room[r * N + k] !== room;
+    for (let c = 0; c < N * N; c++) {
+      if (pz.room[c] !== room) continue;
+      const r = Math.floor(c / N), k = c % N;
+      if (out(r - 1, k)) strip(k + 0.5, r, true);
+      if (out(r + 1, k)) strip(k + 0.5, r + 1, true);
+      if (out(r, k - 1)) strip(k, r + 0.5, false);
+      if (out(r, k + 1)) strip(k + 1, r + 0.5, false);
+    }
+    const geo = this.bag.geo(mergeGeometries(strips));
+    strips.forEach((g) => g.dispose());
+    const m = new Mesh(geo, this.bag.mat(new MeshBasicMaterial({ color: '#ffd277', transparent: true, opacity: 0.92, depthWrite: false })));
+    m.renderOrder = 4;
+    this.outlines.set(room, m);
+    return m;
   }
 
   private placeAt(st: PawnState, cell: number): void {

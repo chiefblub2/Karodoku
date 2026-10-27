@@ -25,7 +25,7 @@ export class Board2D implements BoardView {
   private host!: HTMLElement;
   private root!: HTMLDivElement;
   private svg!: SVGSVGElement;
-  private layers!: { shade: SVGGElement; hl: SVGGElement; marks: SVGGElement; pawns: SVGGElement; fx: SVGGElement };
+  private layers!: { shade: SVGGElement; hl: SVGGElement; outline: SVGGElement; marks: SVGGElement; pawns: SVGGElement; fx: SVGGElement };
   private pz!: Puzzle;
   private cast: CastEntry[] = [];
   private detach: (() => void) | null = null;
@@ -86,14 +86,16 @@ export class Board2D implements BoardView {
     });
 
     this.root.innerHTML = `<svg viewBox="${-PAD} ${-PAD} ${W} ${W}" class="board2d-svg" aria-hidden="true">
+      <defs><pattern id="shade-hatch" width="0.2" height="0.2" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <rect width="0.2" height="0.2" class="shade-fill"/><path d="M0.1 0v0.2" class="shade-line"/></pattern></defs>
       <rect x="${-PAD}" y="${-PAD}" width="${W}" height="${W}" rx="0.3" class="base"/>
-      <g>${floor}</g><g class="shade"></g><g class="hl"></g><g class="furn">${furn}</g>
+      <g>${floor}</g><g class="hl"></g><g class="furn">${furn}</g><g class="shade"></g>
       <path d="${walls}" class="wall"/><rect x="0" y="0" width="${N}" height="${N}" class="wall outer"/>
-      <g class="labels">${labels}</g><g class="coords">${coords}</g>
+      <g class="outline"></g><g class="labels">${labels}</g><g class="coords">${coords}</g>
       <g class="marks"></g><g class="pawns"></g><g class="fx"></g></svg>`;
     this.svg = this.root.querySelector('svg')!;
     const g = (sel: string) => this.svg.querySelector(sel) as SVGGElement;
-    this.layers = { shade: g('.shade'), hl: g('.hl'), marks: g('.marks'), pawns: g('.pawns'), fx: g('.fx') };
+    this.layers = { shade: g('.shade'), hl: g('.hl'), outline: g('.outline'), marks: g('.marks'), pawns: g('.pawns'), fx: g('.fx') };
     this.detach?.();
     this.detach = attachPointer(this.root, {
       pick: (x, y) => this.pick(x, y),
@@ -126,8 +128,25 @@ export class Board2D implements BoardView {
   update(vm: ViewModel): void {
     const { pz } = this;
     const N = pz.size;
-    let shade = '', hl = '', marks = '', pawns = '';
-    for (const c of vm.shaded) shade += `<rect x="${colOf(c, N)}" y="${rowOf(c, N)}" width="1" height="1"/>`;
+    let shade = '', hl = '', outline = '', marks = '', pawns = '';
+    // Ruled-out cells: greyed (saturation blend) and darkened with hatching, furniture included.
+    for (const c of vm.shaded) {
+      const x = colOf(c, N), y = rowOf(c, N);
+      shade += `<rect x="${x}" y="${y}" width="1" height="1" class="shade-grey"/><rect x="${x}" y="${y}" width="1" height="1" class="shade-dark"/>`;
+    }
+    if (vm.outlineRoom >= 0) {
+      let d = '';
+      for (let c = 0; c < N * N; c++) {
+        if (pz.room[c] !== vm.outlineRoom) continue;
+        const x = colOf(c, N), y = rowOf(c, N);
+        const out = (r2: number, k2: number) => r2 < 0 || k2 < 0 || r2 >= N || k2 >= N || pz.room[r2 * N + k2] !== vm.outlineRoom;
+        if (out(y - 1, x)) d += `M${x} ${y}h1`;
+        if (out(y + 1, x)) d += `M${x} ${y + 1}h1`;
+        if (out(y, x - 1)) d += `M${x} ${y}v1`;
+        if (out(y, x + 1)) d += `M${x + 1} ${y}v1`;
+      }
+      outline = `<path d="${d}" class="room-outline"/>`;
+    }
     for (let c = 0; c < N * N; c++) {
       if (vm.highlightRooms.has(pz.room[c])) hl += `<rect x="${colOf(c, N)}" y="${rowOf(c, N)}" width="1" height="1" class="room-glow"/>`;
     }
@@ -145,7 +164,12 @@ export class Board2D implements BoardView {
       const cls = `p2d${vm.wrong.has(p) ? ' wobble' : ''}${who.victim ? ' victim' : ''}`;
       pawns += `<svg x="${x + 0.05}" y="${y + 0.02}" width="0.9" height="0.94" class="${cls}">${art}</svg>`;
     });
-    if (typeof vm.tool === 'number' && vm.hoverCell >= 0 && !isBlocking(pz.obj[vm.hoverCell]) && vm.pos.indexOf(vm.hoverCell) < 0) {
+    const ghostOk = vm.hoverCell >= 0 && !vm.solved && !isBlocking(pz.obj[vm.hoverCell]) && vm.pos.indexOf(vm.hoverCell) < 0;
+    if (ghostOk && vm.tool === 'mark' && !vm.marks.has(vm.hoverCell)) {
+      const x = colOf(vm.hoverCell, N), y = rowOf(vm.hoverCell, N);
+      marks += `<path d="M${x + 0.28} ${y + 0.28}l0.44 0.44M${x + 0.72} ${y + 0.28}l-0.44 0.44" class="mark" opacity="0.4"/>`;
+    }
+    if (ghostOk && typeof vm.tool === 'number') {
       const who = this.cast[vm.tool];
       if (who) {
         const x = colOf(vm.hoverCell, N), y = rowOf(vm.hoverCell, N);
@@ -155,6 +179,7 @@ export class Board2D implements BoardView {
     }
     this.layers.shade.innerHTML = shade;
     this.layers.hl.innerHTML = hl;
+    this.layers.outline.innerHTML = outline;
     this.layers.marks.innerHTML = marks;
     this.layers.pawns.innerHTML = pawns;
   }

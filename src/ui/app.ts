@@ -30,10 +30,13 @@ export class App {
   tool: Tool = 0;
   selectedCell = -1;
   hoverCell = -1;
+  /** Cell a finger is resting on (preview before placing), −1 for none. */
+  pressCell = -1;
   focusClue = -1;
   /** Room briefly highlighted after its plaque was tapped, −1 for none. */
   pulseRoom = -1;
   private pulseTimer = 0;
+  private bannerTimer = 0;
   private timer = 0;
   private perfAsked = false;
   private webglFailed = false;
@@ -114,6 +117,7 @@ export class App {
     ];
     this.tool = this.firstUnplaced() ?? 0;
     this.selectedCell = -1;
+    this.pressCell = -1;
     this.focusClue = -1;
     this.pulseRoom = -1;
     await this.ensureView();
@@ -238,6 +242,14 @@ export class App {
       this.refreshView();
       return;
     }
+    if (i.type === 'press') {
+      // Look before placing: ghost, room name and outline; the game itself is untouched.
+      this.pressCell = i.cell;
+      if (i.cell >= 0) this.showRoomBanner(i.cell, true);
+      else this.hideBanner();
+      this.refreshView();
+      return;
+    }
     if (i.type === 'room') { this.showRoom(i.room); return; }
     if (g.progress.solved) return;
     this.selectedCell = i.cell;
@@ -325,7 +337,8 @@ export class App {
       shaded: g.shadedCells(),
       tool: this.tool,
       selectedCell: this.selectedCell,
-      hoverCell: this.hoverCell,
+      hoverCell: this.pressCell >= 0 ? this.pressCell : this.hoverCell,
+      outlineRoom: this.pressCell >= 0 ? g.pz.room[this.pressCell] : -1,
       highlightRooms: new Set(this.pulseRoom >= 0 ? [...refs.rooms, this.pulseRoom] : refs.rooms),
       highlightPeople: new Set(refs.people),
       solved: g.progress.solved,
@@ -369,6 +382,7 @@ export class App {
       b.textContent = b.dataset.tab === 'clues' ? t.clues : t.furniture;
     });
     $('#a11y-grid').setAttribute('aria-label', t.boardLabel);
+    $('.dock').setAttribute('aria-label', t.dockLabel);
   }
 
   renderTimer(): void {
@@ -431,6 +445,23 @@ export class App {
     $('#clue-bar').innerHTML = `<span class="clue-count">${t.clues} · ${open.length ? t.cluesLeft(open.length, g.pz.clues.length) : t.allCluesChecked}</span>
       <span class="clue-preview">${first !== undefined ? n + this.segmentsHtml(t.clue(g.pz.clues[first])) : ''}</span>${icon('chevron', 'ui-icon chevron')}`;
     $('#clue-bar').setAttribute('aria-label', `${t.clues}: ${open.length ? t.cluesLeft(open.length, g.pz.clues.length) : t.allCluesChecked}`);
+    $('#clue-bar').dataset.clue = first !== undefined ? String(first) : '';
+    this.syncCluePreview();
+  }
+
+  /** The bar's one-line preview is only shown while the list below doesn't already show that clue. */
+  syncCluePreview(): void {
+    const bar = $('#clue-bar');
+    const preview = bar.querySelector<HTMLElement>('.clue-preview');
+    if (!preview) return;
+    const body = $('#clue-sheet .sheet-body');
+    const li = bar.dataset.clue ? body.querySelector<HTMLElement>(`#sheet-clues [data-clue="${bar.dataset.clue}"]`) : null;
+    let shown = false;
+    if (li && !$('#sheet-clues').hidden && body.clientHeight > 0) {
+      const a = body.getBoundingClientRect(), b = li.getBoundingClientRect();
+      shown = b.height > 0 && b.top >= a.top - 1 && b.bottom <= a.bottom + 1;
+    }
+    preview.hidden = shown;
   }
 
   /** Swipe sideways on the clue bar: step through the clues, highlighting each one's references. */
@@ -452,6 +483,8 @@ export class App {
     this.focusClue = next;
     play('tick');
     this.renderPlayState();
+    $('#sheet-clues').querySelector(`[data-clue="${next}"]`)?.scrollIntoView({ block: 'nearest' });
+    this.syncCluePreview();
     const prev = document.querySelector<HTMLElement>('#clue-bar .clue-preview');
     if (prev) { prev.style.setProperty('--dir', `${dir * 14}px`); prev.classList.add('slide'); }
   }
@@ -467,10 +500,11 @@ export class App {
       $('#sheet-clues').hidden = false;
       $('#sheet-legend').hidden = true;
     }
-    if (open) {
+    if (open || this.focusClue >= 0) {
       const target = this.focusClue >= 0 ? this.focusClue : 0;
       sheet.querySelector(`#sheet-clues [data-clue="${target}"]`)?.scrollIntoView({ block: 'nearest' });
     }
+    this.syncCluePreview();
   }
 
   renderLegend(): void {
@@ -538,19 +572,25 @@ export class App {
     this.refreshView();
   }
 
-  showRoomBanner(cell: number): void {
+  /** Name the cell's room; `hold` keeps the banner up until `hideBanner` (while a finger rests). */
+  showRoomBanner(cell: number, hold = false): void {
     const g = this.game!;
     const t = s();
     const o = g.pz.obj[cell];
-    this.flashBanner(`<b>${esc(t.rooms[g.pz.rooms[g.pz.room[cell]].type])}</b> · ${cellName(cell, g.size)}${o ? ` · ${esc(t.objects[o])}` : ''}`);
+    this.flashBanner(`<b>${esc(t.rooms[g.pz.rooms[g.pz.room[cell]].type])}</b> · ${cellName(cell, g.size)}${o ? ` · ${esc(t.objects[o])}` : ''}`, hold);
   }
 
-  private flashBanner(html: string): void {
+  private flashBanner(html: string, hold = false): void {
     const el = $('#room-banner');
     el.innerHTML = html;
     el.classList.add('show');
-    clearTimeout((el as unknown as { _t: number })._t);
-    (el as unknown as { _t: number })._t = window.setTimeout(() => el.classList.remove('show'), 1600);
+    clearTimeout(this.bannerTimer);
+    if (!hold) this.bannerTimer = window.setTimeout(() => el.classList.remove('show'), 1600);
+  }
+
+  hideBanner(): void {
+    clearTimeout(this.bannerTimer);
+    $('#room-banner').classList.remove('show');
   }
 
   announce(msg: string): void { $('#live').textContent = msg; }
@@ -799,8 +839,11 @@ export class App {
       const focus = el.closest<HTMLElement>('[data-focus]');
       if (focus) {
         const i = Number(focus.dataset.focus);
+        const fromFullSheet = !!focus.closest('#clue-sheet.open');
         this.focusClue = this.focusClue === i ? -1 : i;
         this.renderPlayState();
+        // From the full sheet, drop back to half height so the highlight on the board shows.
+        if (this.focusClue >= 0 && fromFullSheet) this.setSheetOpen(false);
       }
     };
     $('#side-clues').addEventListener('click', onClueClick);
@@ -826,6 +869,7 @@ export class App {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.setSheetOpen(!$('#clue-sheet').classList.contains('open')); }
     });
     $('#sheet-backdrop').addEventListener('click', () => this.setSheetOpen(false));
+    $('#clue-sheet .sheet-body').addEventListener('scroll', () => this.syncCluePreview(), { passive: true });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') this.setSheetOpen(false); });
     document.querySelectorAll<HTMLElement>('.side-tabs').forEach((tabs) => {
       tabs.addEventListener('click', (e) => {
@@ -835,6 +879,7 @@ export class App {
         tabs.querySelectorAll('.side-tab').forEach((x) => x.classList.toggle('active', x === b));
         panel.querySelector<HTMLElement>('.clue-list')!.hidden = b.dataset.tab !== 'clues';
         panel.querySelector<HTMLElement>('.legend')!.hidden = b.dataset.tab !== 'legend';
+        this.syncCluePreview();
       });
     });
 
@@ -880,7 +925,7 @@ export class App {
     });
 
     window.addEventListener('popstate', () => void this.openCase(this.readUrl(), { replaceUrl: true }));
-    window.addEventListener('resize', () => this.view?.resize());
+    window.addEventListener('resize', () => { this.view?.resize(); this.syncCluePreview(); });
     window.addEventListener('pagehide', () => this.game?.persist());
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.game?.persist(); });
   }

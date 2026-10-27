@@ -74,6 +74,7 @@ export interface Strings {
   allCluesChecked: string;
   cell(name: string, room: string, object: string | null, person: string | null, marked: boolean): string;
   boardLabel: string;
+  dockLabel: string;
   updateReady: string;
   reload: string;
   victim: string;
