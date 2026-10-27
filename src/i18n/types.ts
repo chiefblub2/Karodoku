@@ -16,10 +16,8 @@ export interface Strings {
   difficulty: string;
   difficulties: Record<Difficulty, string>;
   newCase: string;
-  newCaseTitle: string;
   startCase: string;
   daily: string;
-  dailyShort: string;
   clues: string;
   furniture: string;
   rooms: Record<RoomType, string>;
@@ -35,7 +33,7 @@ export interface Strings {
   bios: Record<string, string>;
   victimRole: string;
   victimBio: string;
-  actions: { undo: string; redo: string; check: string; hint: string; reset: string; share: string };
+  actions: { undo: string; redo: string; check: string; hint: string; reset: string; share: string; accuse: string };
   mark: string;
   markHint: string;
   story(victim: string, weapon: string): string;
@@ -65,6 +63,25 @@ export interface Strings {
   nextCase: string;
   shareResult: string;
   shareText(id: string, time: string, hints: number): string;
+  toMenu: string;
+  menu: {
+    open: string;
+    back: string;
+    continue: string;
+    continueSub(size: number, difficulty: string, time: string): string;
+    tutorialRunning: string;
+    dailySub(date: string, size: number, difficulty: string): string;
+    dailySolved(time: string): string;
+    newCaseSub: string;
+    tutorial: string;
+    tutorialSub: string;
+    recommended: string;
+    rulesSub: string;
+    settings: string;
+    settingsSub: string;
+  };
+  coach: { steps: [string, string, string]; step(n: number, total: number): string; skip: string; done: string };
+  longPressTip: string;
   rulesTitle: string;
   rules: string[];
   howTo: string;

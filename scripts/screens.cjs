@@ -1,13 +1,14 @@
-// Screenshot matrix: node scripts/screens.cjs <baseUrl> <outDir> [tag]
-// 390×844 and 1280×800, 5×5 and 8×8, light and dark UI; plus phone interaction states.
+// Screenshot matrix: node scripts/screens.cjs <baseUrl> <outDir> [tag] [part]
+// 390×844 and 1280×800, 5×5 and 8×8, light and dark UI; plus phone interaction states, the menu and the tutorial.
+// `part` (matrix | flows | menus) renders just that set.
 const { chromium } = require('playwright');
 const fs = require('fs');
 (async () => {
-  const [base, out, tag = ''] = process.argv.slice(2);
+  const [base, out, tag = '', part = ''] = process.argv.slice(2);
   fs.mkdirSync(out, { recursive: true });
   const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const viewports = [['phone', { width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true }], ['desktop', { width: 1280, height: 800, deviceScaleFactor: 1 }]];
-  for (const [vname, vp] of viewports) {
+  for (const [vname, vp] of !part || part === 'matrix' ? viewports : []) {
     for (const scheme of ['light', 'dark']) {
       for (const n of [5, 8]) {
         const ctx = await b.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: vp.deviceScaleFactor, isMobile: !!vp.isMobile, hasTouch: !!vp.hasTouch, colorScheme: scheme, locale: 'de-DE', reducedMotion: 'reduce' });
@@ -39,9 +40,57 @@ const fs = require('fs');
       }
     }
   }
-  await flows(b, base, out, tag);
+  if (!part || part === 'flows') await flows(b, base, out, tag);
+  if (!part || part === 'menus') await menus(b, base, out, tag);
   await b.close();
 })();
+
+/** Game menu (first launch and with a saved case) and the three tutorial coach marks. */
+async function menus(b, base, out, tag) {
+  for (const scheme of ['light', 'dark']) {
+    const name = (n) => `${out}/phone-${n}-${scheme}${tag ? '-' + tag : ''}.jpg`;
+    const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: scheme, locale: 'de-DE', reducedMotion: 'reduce' });
+    const pg = await ctx.newPage();
+    const errs = [];
+    pg.on('pageerror', (e) => errs.push(e.message));
+    // First launch: nothing stored, the menu recommends the tutorial.
+    await pg.goto(base);
+    await pg.waitForSelector('#menu[open]');
+    await pg.waitForTimeout(400);
+    await pg.screenshot({ path: name('menu-first'), type: 'jpeg', quality: 88 });
+    // Tutorial: each coach mark, advanced by doing what it asks (through the accessible grid).
+    await pg.click('[data-menu=tutorial]');
+    await pg.waitForSelector('#coach:not([hidden])');
+    await pg.waitForTimeout(2000);
+    await pg.screenshot({ path: name('tutorial-1'), type: 'jpeg', quality: 88 });
+    const freeCell = () => pg.evaluate(() => {
+      const g = window.__app.game;
+      return [...Array(g.size ** 2).keys()].find((c) => !g.pz.obj[c] && g.personAt(c) < 0 && !g.progress.marks.includes(c) && !g.pz.solution.includes(c));
+    });
+    const tapCell = async (c) => pg.evaluate((c) => document.querySelector(`#a11y-grid [data-cell="${c}"]`).click(), c);
+    await tapCell(await freeCell());
+    await pg.waitForTimeout(400);
+    await pg.screenshot({ path: name('tutorial-2'), type: 'jpeg', quality: 88 });
+    await pg.click('#palette [data-person="mark"]');
+    await tapCell(await freeCell());
+    await pg.waitForTimeout(400);
+    await pg.screenshot({ path: name('tutorial-3'), type: 'jpeg', quality: 88 });
+    await pg.click('#sheet-clues [data-focus="0"]');
+    await pg.waitForSelector('#menu[open]');
+    await pg.waitForTimeout(400);
+    // A real case with progress, then back to the menu: "Continue" leads the list.
+    await pg.goto(`${base}?n=6&d=medium&s=show2`);
+    await pg.waitForSelector('canvas.board3d, .board2d svg', { timeout: 30000 });
+    await pg.waitForTimeout(1500);
+    await pg.evaluate(() => { const g = window.__app.game; g.place(0, g.pz.solution[0]); for (let i = 0; i < 95; i++) g.tick(); });
+    await pg.click('#btn-menu');
+    await pg.waitForSelector('#menu[open]');
+    await pg.waitForTimeout(400);
+    await pg.screenshot({ path: name('menu-saved'), type: 'jpeg', quality: 88 });
+    console.log(`phone menus ${scheme}`, errs.length ? errs : 'ok');
+    await ctx.close();
+  }
+}
 
 /** Phone interaction states: a finger resting on a cell, a name tag, and a clue picked from the full sheet. */
 async function flows(b, base, out, tag) {

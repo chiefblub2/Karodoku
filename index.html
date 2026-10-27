@@ -17,8 +17,8 @@
         <div class="brand-text"><h1>Karodoku</h1><p class="tagline" data-t="appTagline"></p></div>
       </div>
       <div class="top-actions">
-        <button id="btn-case" class="pill" type="button"></button>
         <button id="btn-rules" class="icon-btn" type="button"></button>
+        <button id="btn-menu" class="icon-btn" type="button"></button>
       </div>
     </header>
 
@@ -32,6 +32,7 @@
         <div id="board-host" class="board-host"></div>
         <div id="room-banner" class="room-banner" aria-hidden="true"></div>
         <div id="pawn-label" class="pawn-label" aria-hidden="true"></div>
+        <section id="coach" class="coach" hidden></section>
         <div id="a11y-grid" class="sr-only" role="grid"></div>
         <div id="loading" class="loading" hidden><div class="spinner"></div><span id="loading-text"></span></div>
       </section>
@@ -66,6 +67,7 @@
     </section>
   </div>
 
+  <dialog id="menu" class="menu" aria-labelledby="menu-title"></dialog>
   <div id="sheet-backdrop" class="sheet-backdrop" hidden></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <div id="live" class="sr-only" aria-live="polite"></div>

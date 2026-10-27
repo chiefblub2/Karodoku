@@ -40,10 +40,10 @@ const { chromium } = require('playwright');
   await pg.waitForTimeout(300);
   await shot('4-legend');
   await pg.click('#sheet-backdrop', { position: { x: 20, y: 60 } });
-  // Settings sheet.
-  await pg.click('#btn-case');
+  // Game menu.
+  await pg.click('#btn-menu');
   await pg.waitForTimeout(400);
-  await shot('5-settings');
+  await shot('5-menu');
   await pg.keyboard.press('Escape');
   await pg.waitForTimeout(300);
   // Long-press bio on a chip.

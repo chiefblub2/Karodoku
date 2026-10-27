@@ -31,11 +31,14 @@ export class GameStore {
   private redoStack: Snapshot[] = [];
   private listeners = new Set<(e: GameEvent) => void>();
   readonly resumed: boolean;
+  /** False for throwaway games (the tutorial): nothing is read from or written to storage. */
+  readonly saves: boolean;
 
-  constructor(pz: Puzzle) {
+  constructor(pz: Puzzle, opts: { persist?: boolean } = {}) {
     this.pz = pz;
+    this.saves = opts.persist ?? true;
     this.key = progressKey(pz.size, pz.difficulty, pz.seed);
-    const saved = load(this.key, isProgress(pz.size));
+    const saved = this.saves ? load(this.key, isProgress(pz.size)) : null;
     this.progress = saved ?? freshProgress(pz.size);
     this.resumed = !!saved && (saved.pos.some((c) => c >= 0) || saved.marks.length > 0);
   }
@@ -52,7 +55,7 @@ export class GameStore {
     this.listeners.forEach((fn) => fn(e));
   }
 
-  persist(): void { save(this.key, this.progress); }
+  persist(): void { if (this.saves) save(this.key, this.progress); }
 
   // ---------- queries ----------
 

@@ -38,7 +38,7 @@ const { chromium } = require('playwright');
       const counts = {};
       for (const k of small) counts[k] = (counts[k] ?? 0) + 1;
       const sizes = {};
-      for (const [k, sel] of Object.entries({ chip: '#palette .chip', clueCheck: '.clue-check', action: '.action', pill: '#btn-case', rules: '#btn-rules', strip: '#case-strip' })) {
+      for (const [k, sel] of Object.entries({ chip: '#palette .chip', clueCheck: '.clue-check', action: '.action', menu: '#btn-menu', rules: '#btn-rules', strip: '#case-strip' })) {
         const e = [...document.querySelectorAll(sel)].find((x) => x.getBoundingClientRect().width > 0); if (!e) continue;
         const q = e.getBoundingClientRect();
         const after = getComputedStyle(e, '::after');
