@@ -55,7 +55,7 @@ und offline als App (PWA).
 | `src/ui/` | Oberfläche, Dialoge, Eingabe, Haptik/Töne, PWA |
 | `tests/` | Vitest: Eindeutigkeit, Regeln, Minimalität, Schwierigkeit, Determinismus, Laufzeit |
 | `scripts/` | Screenshots, Leistungsmessung, Offline-Test, Icons und Legenden-Bilder backen |
-| `screenshots/` | Aktuelle Bilder (Handy 390×844, Desktop 1280×800, 5×5/8×8, hell/dunkel, Menü, Tutorial) |
+| `screenshots/` | Titelbild dieser README (Handy 390×844, 8×8, dunkel) |
 | `lineup.html` | Entwicklerseite mit allen Modellen (nicht im Build) |
 
 ## Entwicklung
@@ -67,7 +67,8 @@ npm test             # Vitest (KARODOKU_SEEDS=40 npm test für mehr Seeds)
 npm run typecheck
 npm run build        # Typecheck + Produktions-Build nach dist/
 npx tsx scripts/stats.ts 20                       # Generator-Statistik
-node scripts/screens.cjs http://localhost:5173/ screenshots   # Screenshot-Matrix, Menü, Tutorial
+node scripts/screens.cjs http://localhost:5173/ /tmp/karodoku-screens   # Screenshot-Matrix, Menü, Tutorial
+                                                  # (Titelbild: phone-8x8-dark.jpg nach screenshots/ kopieren)
 node scripts/qa.cjs "http://localhost:5173/?n=6&d=medium&s=qa" /tmp   # axe-core + Durchspiel-Test
 node scripts/layout.cjs http://localhost:5173/                 # Feldgröße, Überlappung, Ziele < 44 px
 node scripts/bake-thumbs.cjs                      # Legenden-Bilder neu backen (Dev-Server läuft)
